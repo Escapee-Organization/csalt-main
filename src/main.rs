@@ -2,8 +2,12 @@
 // If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org.
 // Copyright (c) 2026 Escapee Organization
 
+#[warn(unused_imports)] // TODO: Use all imports
 use clap::{ArgAction, Parser};
 use csalt::run;
+use dirs::home_dir;
+use std::io;
+use std::path::PathBuf;
 
 /// csalt - A CLI tool and language that just works with C
 #[derive(Parser, Debug)]
@@ -26,7 +30,22 @@ struct Args {
     backend_flags: Vec<String>,
 }
 
+fn ensure_cache_dir() -> Result<PathBuf, io::Error> {
+    let home = home_dir().ok_or(io::Error::new(
+        io::ErrorKind::NotFound,
+        "[ERROR]\nhome directory not found",
+    ))?;
+    let cache_dir = home.join(".csalt");
+    std::fs::create_dir_all(&cache_dir).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    Ok(cache_dir)
+}
+
 fn main() {
+    if let Err(e) = ensure_cache_dir() {
+        eprintln!("[ERROR]\n{}", e);
+        std::process::exit(1);
+    }
+
     let args = Args::parse();
     println!("Hello, world!");
 
@@ -36,7 +55,7 @@ fn main() {
     let _backend_flags = &args.backend_flags;
 
     if let Err(e) = run(&input) {
-        eprintln!("[ERROR]\n {}", e);
+        eprintln!("[ERROR]\n{}", e);
         std::process::exit(1);
     }
 }
