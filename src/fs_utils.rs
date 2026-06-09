@@ -12,7 +12,7 @@ pub fn verify_workspace(workspace: &str) -> Result<(), Box<dyn Error>> {
     if !path.is_dir() {
         return Err(Box::new(std::io::Error::new(
             std::io::ErrorKind::NotFound,
-            "Workspace directory not found",
+            "[ERROR]\nWorkspace directory not found",
         )));
     }
 
@@ -20,26 +20,26 @@ pub fn verify_workspace(workspace: &str) -> Result<(), Box<dyn Error>> {
     if !path.join("Salt.toml").is_file() {
         return Err(Box::new(std::io::Error::new(
             std::io::ErrorKind::NotFound,
-            "'Salt.toml' not found",
+            "[ERROR]\n'Salt.toml' not found",
         )));
     }
     if !path.join("Salt.lock").is_file() {
         return Err(Box::new(std::io::Error::new(
             std::io::ErrorKind::NotFound,
-            "'Salt.lock' not found",
+            "[ERROR]\n'Salt.lock' not found",
         )));
     }
     if !path.join(".csalt").is_dir() {
         return Err(Box::new(std::io::Error::new(
             std::io::ErrorKind::NotFound,
-            "'.csalt/' hidden directory not found",
+            "[ERROR]\n'.csalt/' hidden directory not found",
         )));
     }
 
     // Check if there is no manual Makefile or CMakeLists.txt, etc
     if path.join("Makefile").is_file() || path.join("CMakeLists.txt").is_file() {
         // Edit the Salt.lock file
-        println!("[warning]\n Manual Makefile or CMakeLists.txt found, updating 'Salt.lock'");
+        println!("[warning]\nManual Makefile or CMakeLists.txt found, updating 'Salt.lock'");
     }
 
     Ok(())
