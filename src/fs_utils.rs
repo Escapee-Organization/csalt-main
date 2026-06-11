@@ -44,3 +44,40 @@ pub fn verify_workspace(workspace: &str) -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+
+pub fn new_project(name: &str, dir: &str) -> Result<(), Box<dyn std::error::Error>> {
+    // Make new directory, move into it, and create all elements
+    let path = Path::new(dir).join(name);
+    fs::create_dir_all(&path)?;
+
+    init_project(&path.to_str().unwrap())?;
+
+    println!("[info]\nNew project '{}' created successfully", name);
+    Ok(())
+}
+
+pub fn init_project(dir: &str) -> Result<(), Box<dyn std::error::Error>> {
+    fs::create_dir_all(dir)?;
+    let toml_content = format!(
+        r#"
+[project]
+name = "{}"
+version = "0.1.0"
+edition = "11"
+
+[build]
+target = "debug"
+"#,
+        dir
+    );
+    fs::write(dir.to_owned() + "/Salt.toml", toml_content)?;
+    fs::write(dir.to_owned() + "/Salt.lock", "")?;
+
+    let path = Path::new(dir);
+    fs::create_dir(path.join("src"))?;
+    fs::create_dir(path.join(".csalt"))?;
+    // fs::write(path.join("src").to_owned(), "main.c")?;
+
+    println!("[info]\nProject directory initialized successfully");
+    Ok(())
+}
