@@ -29,8 +29,24 @@ fn main() {
 
     let args = Args::parse();
 
-    if let Err(e) = run(&input) {
-        eprintln!("[ERROR]\n{}", e);
-        std::process::exit(1);
+    match &args.command {
+        Commands::Init { dir } => {
+            if let Err(e) = fs_utils::init_project(&dir.to_string_lossy()) {
+                eprintln!("[ERROR]\n{}", e);
+                std::process::exit(1);
+            }
+        }
+        Commands::New { name, dir } => {
+            if let Err(e) = fs_utils::new_project(name, &dir.to_string_lossy()) {
+                eprintln!("[ERROR]\n{}", e);
+                std::process::exit(1);
+            }
+        }
+        Commands::Compile(Args) => {
+            if let Err(e) = compile_project(&args) {
+                eprintln!("[ERROR]\n{}", e);
+                std::process::exit(1);
+            }
+        }
     }
 }
