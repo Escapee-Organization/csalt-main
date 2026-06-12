@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+// If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org.
+// Copyright (c) 2026 Escapee Organization
+
 #[warn(unused_imports)] // TODO: Make sure nothing is unused
 use std::error::Error;
 use std::fs;
