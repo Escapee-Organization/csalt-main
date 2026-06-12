@@ -63,14 +63,19 @@ pub fn new_project(name: &str, dir: &str) -> Result<(), Box<dyn std::error::Erro
 pub fn init_project(dir: &str) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(dir)?;
     let toml_content = format!(
-        r#"
-[project]
+        r#"[package]
 name = "{}"
 version = "0.1.0"
-edition = "11"
+authors = [""]
+main = "main.c"
 
 [build]
-target = "debug"
+target = ""
+edition = "2026"
+
+[dependencies]
+
+[settings]
 "#,
         dir
     );
@@ -79,8 +84,13 @@ target = "debug"
 
     let path = Path::new(dir);
     fs::create_dir(path.join("src"))?;
+    fs::create_dir(path.join("out"))?;
     fs::create_dir(path.join(".csalt"))?;
-    // fs::write(path.join("src").to_owned(), "main.c")?;
+    // Write in a hello world with a return 0 and import stdio.h
+    fs::write(
+        path.join("src").join("main.c"),
+        "#include <stdio.h>\n\nint main() {\n    printf(\"Hello, World!\\n\");\n    return 0;\n}",
+    )?;
 
     println!("[info]\nProject directory initialized successfully");
     Ok(())
