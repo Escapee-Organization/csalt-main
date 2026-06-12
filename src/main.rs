@@ -5,7 +5,7 @@
 // TODO: Use all imports
 
 use clap::Parser;
-use csalt::{Args, Commands, CompileArgs, compile_project, run};
+use csalt::{Args, Commands, CompileArgs, compile_project, run, update_csalt};
 use dirs::home_dir;
 use std::io;
 use std::path::PathBuf;
@@ -42,8 +42,14 @@ fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::Compile(Args) => {
-            if let Err(e) = compile_project(&args) {
+        Commands::Update => {
+            if let Err(e) = update_csalt() {
+                eprintln!("[ERROR]\n{}", e);
+                std::process::exit(1);
+            }
+        }
+        Commands::Compile(salt_args) => {
+            if let Err(e) = compile_project(salt_args) {
                 eprintln!("[ERROR]\n{}", e);
                 std::process::exit(1);
             }

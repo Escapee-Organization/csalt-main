@@ -7,6 +7,7 @@ use std::path::PathBuf;
 
 pub mod engine;
 pub mod fs_utils;
+pub mod transpile;
 
 /// csalt - A CLI tool and language that just works with C
 #[derive(Parser, Debug)]
@@ -36,6 +37,9 @@ pub enum Commands {
         dir: PathBuf,
     },
 
+    #[command(name = "update")]
+    Update,
+
     #[command(name = "build")]
     Compile(CompileArgs),
 }
@@ -43,20 +47,29 @@ pub enum Commands {
 #[derive(Parser, Debug)]
 pub struct CompileArgs {
     /// The main input source file or target directory
-    #[arg(required = true, default_value = ".")]
+    #[arg(default_value = ".")]
     input: String,
 
     /// Explicitly set the output binary file destination
-    #[arg(short = 'o', long = "output")]
-    output: Option<String>,
+    #[arg(short = 'o', long = "output", default_value = "main")]
+    output: String,
 
+    // TODO: Make this Option<String> so we can check the .toml for the backend
     /// Choose the host compiler driver backend [possible values: clang, gcc, zig]
-    #[arg(short = 'b', long = "backend")]
+    #[arg(short = 'b', long = "backend", default_value = "clang")]
     backend: String,
 
     /// Trailing parameters forwarded completely intact to the backend compiler layer
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, action = ArgAction::Append)]
     backend_flags: Vec<String>,
+}
+
+// TODO: Check GitHub for updates, then download and install the latest version
+pub fn update_csalt() -> Result<(), Box<dyn std::error::Error>> {
+    println!(
+        "[info]\nThis command will check for updates and install the latest version *once implemented*"
+    );
+    Ok(())
 }
 
 pub fn run(workspace: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -66,6 +79,95 @@ pub fn run(workspace: &str) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-pub fn compile_project(args: &Args) -> Result<(), Box<dyn std::error::Error>> {
+/*  To compile a project, we must follow specific steps:
+ *  1. Check Salt.lock's cache to see what changed
+ *  2. Run the header file engine
+ *  3. Transpile the source code
+ *  4. Link the transpiled code with the backend compiler
+ *  5. Output the compiled binary to out/
+ */
+pub fn compile_project(args: &CompileArgs) -> Result<(), Box<dyn std::error::Error>> {
+    if let Err(e) = fs_utils::verify_workspace(&args.input) {
+        println!("[ERROR]\nWorkspace validation failed: {}", e);
+        std::process::exit(1);
+    }
+    println!("[info]\nCompiling project...");
+
+    let base_dir = std::env::current_dir()?;
+    let src_dir = base_dir.join("src");
+    let cache_dir = base_dir.join(".csalt");
+    let out_bin_dir = base_dir.join("out").join("bin");
+
+    fs::create_dir_all(&out_bin_dir)?;
+    fs::create_dir_all(&cache_dir)?;
+
+    if src_dir.exists() && src_dir.is_dir() {
+        for entry in fs::read_dir(&src_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_file() {
+                if let Some(file_name) = path.file_name() {
+                    let dest_path = cache_dir.join(file_name);
+                    fs::copy(&path, &dest_path)?;
+                }
+            }
+        }
+    }
+
+    let mut files_to_compile: Vec<PathBuf> = Vec::new();
+    if src_dir.exists() && src_dir.is_dir() {
+        for entry in fs::read_dir(src_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            // Only capture files that end with the .c extension
+            if path.is_file() && path.extension().map_or(false, |ext| ext == "c") {
+                files_to_compile.push(path);
+            }
+        }
+    } else {
+        for input_target in args.input.split_whitespace() {
+            let input_path = Path::new(input_target);
+            if let Some(file_name) = input_path.file_name() {
+                let cached_target = cache_dir.join(file_name);
+                if cached_target.exists() {
+                    files_to_compile.push(cached_target);
+                } else {
+                    println!(
+                        "[warning]\nTarget source file not found in staging cache: {:?}",
+                        file_name
+                    );
+                }
+            }
+        }
+    }
+
+    if files_to_compile.is_empty() {
+        return Err("No files to compile".into());
+    }
+
+    // transpile::transpile(args)?;
+
+    // TODO: Add in the .toml check using short-circuit evaluation
+    // Read in the target compiler from the .toml, otherwise use the default (clang). CLI flag overrides
+    let mut target_compiler = Command::new(&args.backend);
+    let binary_name = &args.output;
+    let output_executable = out_bin_dir.join(binary_name);
+
+    for file in &files_to_compile {
+        target_compiler.arg(file.to_str().unwrap());
+    }
+
+    target_compiler.arg("-o");
+    target_compiler.arg(&output_executable);
+
+    for flag in &args.backend_flags {
+        target_compiler.arg(flag);
+    }
+
+    let status = target_compiler.status()?;
+    if !status.success() {
+        return Err("Failed to compile".into());
+    }
+
     Ok(())
 }
