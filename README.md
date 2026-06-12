@@ -3,7 +3,8 @@
 ## Table of Contents
 
 - [Overview](#overview)
-- [Project Scope](#project-scope)
+- [Project Scope](#project-scope-summer-mvp)
+- [Contributing](#contributing)
 - [Licensing](#licensing)
 
 ## Overview
@@ -23,6 +24,9 @@ However, the main idea of the project was created via a human's idea bouncing of
   * Distinguish between pure C-Salt projects and any taint coming from another build system. In the former case, build up an interal representation to then generate any build system the user desires, although intially CMake or shell scripts only. In the case of the user using their own CMake or other build systems, find the master script and insert a cleanly denoted block of imports. Also, `.c` and `.csal` files should both be able to auto-generate.
 * ### Provide a simple CLI for managing C-Salt projects
   * Allows the user to easily create, build, and manage C-Salt projects from the command line. Utilizes a blend between clang and cargo-like CLI.
+ 
+## Contributing
+See the [CONTRIBUTING](CONTRIBUTING.md) file for details.
 
 ## Licensing
 This project is licensed under the MPL 2.0 License. See the [LICENSE](LICENSE) file for details.
