@@ -120,7 +120,7 @@ pub fn compile_project(args: &CompileArgs) -> Result<(), Box<dyn std::error::Err
         for entry in fs::read_dir(src_dir)? {
             let entry = entry?;
             let path = entry.path();
-            // Only capture files that end with the .c extension
+            // Only capture files that end with the .c extension for now
             if path.is_file() && path.extension().map_or(false, |ext| ext == "c") {
                 files_to_compile.push(path);
             }
@@ -146,7 +146,8 @@ pub fn compile_project(args: &CompileArgs) -> Result<(), Box<dyn std::error::Err
         return Err("No files to compile".into());
     }
 
-    // transpile::transpile(args)?;
+    // TODO: Transpile the input files
+    // transpile::transpile(...)?;
 
     // TODO: Add in the .toml check using short-circuit evaluation
     // Read in the target compiler from the .toml, otherwise use the default (clang). CLI flag overrides
