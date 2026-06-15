@@ -4,6 +4,7 @@
 
 // TODO: Use all imports
 
+#![deny(warnings)]
 use clap::Parser;
 use csalt::{Args, Commands, compile_project, update_csalt};
 use dirs::home_dir;
