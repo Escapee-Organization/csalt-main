@@ -32,13 +32,13 @@ fn main() {
 
     match &args.command {
         Commands::Init { dir } => {
-            if let Err(e) = fs_utils::init_project(&dir.to_string_lossy()) {
+            if let Err(e) = fs_utils::init_project(dir) {
                 eprintln!("[ERROR]\n{}", e);
                 std::process::exit(1);
             }
         }
         Commands::New { name, dir } => {
-            if let Err(e) = fs_utils::new_project(name, &dir.to_string_lossy()) {
+            if let Err(e) = fs_utils::new_project(name, &dir) {
                 eprintln!("[ERROR]\n{}", e);
                 std::process::exit(1);
             }
