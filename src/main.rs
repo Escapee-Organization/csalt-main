@@ -5,7 +5,7 @@
 // TODO: Use all imports
 
 use clap::Parser;
-use csalt::{Args, Commands, CompileArgs, compile_project, run, update_csalt};
+use csalt::{Args, Commands, compile_project, update_csalt};
 use dirs::home_dir;
 use std::io;
 use std::path::PathBuf;

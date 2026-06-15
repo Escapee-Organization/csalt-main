@@ -2,7 +2,7 @@
 // If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org.
 // Copyright (c) 2026 Escapee Organization
 
-use clap::{ArgAction, Parser, Subcommand};
+use clap::{ArgAction, Parser};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
