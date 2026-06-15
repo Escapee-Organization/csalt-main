@@ -36,12 +36,14 @@ fn main() {
                 eprintln!("[ERROR]\n{}", e);
                 std::process::exit(1);
             }
+            println!("[info]\nProject directory initialized successfully");
         }
         Commands::New { name, dir } => {
             if let Err(e) = fs_utils::new_project(name, &dir) {
                 eprintln!("[ERROR]\n{}", e);
                 std::process::exit(1);
             }
+            println!("[info]\nNew project '{}' created successfully", name);
         }
         Commands::Update => {
             if let Err(e) = update_csalt() {

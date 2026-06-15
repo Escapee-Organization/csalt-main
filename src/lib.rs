@@ -88,10 +88,7 @@ pub fn run(workspace: &str) -> Result<(), Box<dyn std::error::Error>> {
  *  5. Output the compiled binary to out/
  */
 pub fn compile_project(args: &CompileArgs) -> Result<(), Box<dyn std::error::Error>> {
-    if let Err(e) = fs_utils::verify_workspace(&args.input) {
-        println!("[ERROR]\nWorkspace validation failed: {}", e);
-        std::process::exit(1);
-    }
+    fs_utils::verify_workspace(&args.input)?;
     println!("[info]\nCompiling project...");
 
     let base_dir = std::env::current_dir()?;
