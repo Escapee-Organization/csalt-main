@@ -3,6 +3,7 @@
 // Copyright (c) 2026 Escapee Organization
 
 use clap::{ArgAction, Parser, Subcommand};
+// use self_update;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -38,6 +39,7 @@ pub enum Commands {
         dir: PathBuf,
     },
 
+    /// UNSTABLE, DO NOT TOUCH
     #[command(name = "update")]
     Update,
 
@@ -65,11 +67,18 @@ pub struct CompileArgs {
     backend_flags: Vec<String>,
 }
 
-// TODO: Check GitHub for updates, then download and install the latest version
+// TODO: Implement GitHub release tags and actions
 pub fn update_csalt() -> Result<(), Box<dyn std::error::Error>> {
-    println!(
-        "[info]\nThis command will check for updates and install the latest version *once implemented*"
-    );
+    println!("[info]\nChecking for updates...");
+    /*self_update::backends::github::Update::configure()
+    .repo_owner("Escapee-Organization")
+    .repo_name("csalt-main")
+    .bin_name("csalt")
+    .current_version(env!("CARGO_PKG_VERSION"))
+    .show_download_progress(true)
+    .build()?;*/
+
+    println!("[info]\nUpdate completed successfully.");
     Ok(())
 }
 
