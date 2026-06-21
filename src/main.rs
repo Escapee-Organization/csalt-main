@@ -5,7 +5,10 @@
 // TODO: Use all imports
 
 use clap::Parser;
-use csalt::{Args, Commands, CompileArgs, compile_project, run, update_csalt};
+#[cfg(feature = "experimental")]
+use csalt::update_csalt;
+use csalt::{Args, Commands, CompileArgs, compile_project, run};
+
 use dirs::home_dir;
 use std::io;
 use std::path::PathBuf;
@@ -42,6 +45,7 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        #[cfg(feature = "experimental")]
         Commands::Update => {
             if let Err(e) = update_csalt() {
                 eprintln!("[ERROR]\n{}", e);

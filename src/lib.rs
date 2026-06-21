@@ -39,7 +39,8 @@ pub enum Commands {
         dir: PathBuf,
     },
 
-    /// UNSTABLE, DO NOT TOUCH
+    /// Experimental: Update the csalt binary to the latest version
+    #[cfg(feature = "experimental")]
     #[command(name = "update")]
     Update,
 
@@ -68,15 +69,16 @@ pub struct CompileArgs {
 }
 
 // TODO: Implement GitHub release tags and actions
+#[cfg(feature = "experimental")]
 pub fn update_csalt() -> Result<(), Box<dyn std::error::Error>> {
     println!("[info]\nChecking for updates...");
-    /*self_update::backends::github::Update::configure()
-    .repo_owner("Escapee-Organization")
-    .repo_name("csalt-main")
-    .bin_name("csalt")
-    .current_version(env!("CARGO_PKG_VERSION"))
-    .show_download_progress(true)
-    .build()?;*/
+    self_update::backends::github::Update::configure()
+        .repo_owner("Escapee-Organization")
+        .repo_name("csalt-main")
+        .bin_name("csalt")
+        .current_version(env!("CARGO_PKG_VERSION"))
+        .show_download_progress(true)
+        .build()?;
 
     println!("[info]\nUpdate completed successfully.");
     Ok(())
