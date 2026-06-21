@@ -6,6 +6,10 @@ edition = "2024"
 [dependencies]
 clap = { version = "4.4", features = ["derive"] }
 dirs = "5.0"
+reqwest = { version = "0.11", features = ["blocking"], optional = true }
 # serde = { version = "1.0", features = ["derive"] }
-# reqwest = { version = "0.11", features = ["blocking"] }
 # self_update = "0.44"
+#
+[features]
+default = []
+experimental = ["reqwest"]
