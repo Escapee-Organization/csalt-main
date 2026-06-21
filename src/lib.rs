@@ -38,6 +38,8 @@ pub enum Commands {
         dir: PathBuf,
     },
 
+    /// Experimental: Update the csalt binary to the latest version
+    #[cfg(feature = "experimental")]
     #[command(name = "update")]
     Update,
 
@@ -65,11 +67,19 @@ pub struct CompileArgs {
     backend_flags: Vec<String>,
 }
 
-// TODO: Check GitHub for updates, then download and install the latest version
+// TODO: Implement GitHub release tags and actions
+#[cfg(feature = "experimental")]
 pub fn update_csalt() -> Result<(), Box<dyn std::error::Error>> {
-    println!(
-        "[info]\nThis command will check for updates and install the latest version *once implemented*"
-    );
+    println!("[info]\nChecking for updates...");
+    self_update::backends::github::Update::configure()
+        .repo_owner("Escapee-Organization")
+        .repo_name("csalt-main")
+        .bin_name("csalt")
+        .current_version(env!("CARGO_PKG_VERSION"))
+        .show_download_progress(true)
+        .build()?;
+
+    println!("[info]\nUpdate completed successfully.");
     Ok(())
 }
 

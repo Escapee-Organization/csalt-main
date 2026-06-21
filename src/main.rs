@@ -6,7 +6,9 @@
 
 #![deny(warnings)]
 use clap::Parser;
-use csalt::{Args, Commands, compile_project, update_csalt};
+#[cfg(feature = "experimental")]
+use csalt::update_csalt;
+use csalt::{Args, Commands, compile_project};
 use dirs::home_dir;
 use std::io;
 use std::path::PathBuf;
@@ -45,6 +47,7 @@ fn main() {
             }
             println!("[info]\nNew project '{}' created successfully", name);
         }
+        #[cfg(feature = "experimental")]
         Commands::Update => {
             if let Err(e) = update_csalt() {
                 eprintln!("[ERROR]\n{}", e);
