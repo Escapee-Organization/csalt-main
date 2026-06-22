@@ -36,38 +36,93 @@ edition = "2026"
 
 [settings]
 "#,
-        dir.to_str().unwrap()
+        dir.file_name().and_then(|n| n.to_str()).unwrap_or("")
     );
 
-    let mut toml_file = OpenOptions::new()
+    match OpenOptions::new()
         .write(true)
         .create_new(true)
-        .open(Path::new(dir).join("Salt.toml"))?;
-    let mut lock_file = OpenOptions::new()
+        .open(Path::new(dir).join("Salt.toml"))
+    {
+        Ok(mut toml_file) => writeln!(toml_file, "{}", toml_content)?,
+        Err(e) if e.kind() == ErrorKind::AlreadyExists => {
+            println!("Salt.toml already exists: {}", e);
+        }
+        Err(e) => {
+            return Err(Box::new(e));
+        }
+    }
+    match OpenOptions::new()
         .write(true)
         .create(true)
-        .open(Path::new(dir).join("Salt.lock"))?;
-    writeln!(toml_file, "{}", toml_content)?;
-    writeln!(lock_file, "")?;
+        .open(Path::new(dir).join("Salt.lock"))
+    {
+        Ok(mut lock_file) => writeln!(lock_file, "")?,
+        Err(e) if e.kind() == ErrorKind::AlreadyExists => {
+            println!("Salt.lock already exists: {}", e);
+        }
+        Err(e) => {
+            return Err(Box::new(e));
+        }
+    }
 
     let path = Path::new(dir);
     fs::create_dir_all(path.join("src"))?;
-    fs::create_dir_all(path.join("out"))?;
+    fs::create_dir_all(path.join("include"))?;
+    fs::create_dir_all(path.join("build"))?;
+    fs::create_dir_all(path.join("tests"))?;
     fs::create_dir_all(path.join(".csalt"))?;
 
     // First check if there are any files within the src directory
     // If empty, write in a hello world with a return 0 and import stdio.h
     if fs::read_dir(path.join("src"))?.next().is_none() {
-        let mut main_file = OpenOptions::new()
+        match OpenOptions::new()
             .write(true)
             .create_new(true)
-            .open(Path::new(dir).join("src").join("main.c"))?;
-        writeln!(main_file, "#include <stdio.h>")?;
-        writeln!(main_file, "")?;
-        writeln!(main_file, "int main() {{")?;
-        writeln!(main_file, "    printf(\"Hello, World!\\n\");")?;
-        writeln!(main_file, "    return 0;")?;
-        writeln!(main_file, "}}")?;
+            .open(Path::new(dir).join("src").join("main.c"))
+        {
+            Ok(mut main_file) => {
+                writeln!(main_file, "#include <stdio.h>")?;
+                writeln!(main_file, "")?;
+                writeln!(main_file, "int main() {{")?;
+                writeln!(main_file, "    printf(\"Hello, World!\\n\");")?;
+                writeln!(main_file, "    return 0;")?;
+                writeln!(main_file, "}}\n")?;
+            }
+            Err(e) if e.kind() == ErrorKind::AlreadyExists => {
+                println!("main.c already exists");
+            }
+            Err(e) => {
+                return Err(Box::new(e));
+            }
+        }
+    }
+
+    match fs::exists(Path::new(dir).join("README.md")) {
+        Ok(false) => {
+            let mut read_me = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(Path::new(dir).join("README.md"))?;
+            writeln!(
+                read_me,
+                "# {}\n",
+                dir.file_name().and_then(|n| n.to_str()).unwrap_or("")
+            )?;
+        }
+        _ => {}
+    }
+    match fs::exists(Path::new(dir).join(".gitignore")) {
+        Ok(false) => {
+            let mut gitignore = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(Path::new(dir).join(".gitignore"))?;
+            writeln!(gitignore, "build/")?;
+            writeln!(gitignore, ".cache/")?;
+            writeln!(gitignore, ".csalt/")?;
+        }
+        _ => {}
     }
 
     Ok(())
