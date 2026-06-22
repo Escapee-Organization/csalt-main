@@ -97,15 +97,15 @@ pub fn run(workspace: &str) -> Result<(), Box<dyn std::error::Error>> {
  *  4. Link the transpiled code with the backend compiler
  *  5. Output the compiled binary to out/
  */
-pub fn compile_project(args: &CompileArgs) -> Result<(), Box<dyn std::error::Error>> {
-    fs_utils::verify_workspace(&args.input)?;
+pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error::Error>> {
     println!("[info]\nCompiling project...");
 
     let base_dir = std::env::current_dir()?;
-    let src_dir = base_dir.join("src");
+    fs_utils::init_project(&base_dir)?;
     let cache_dir = base_dir.join(".csalt");
-    let out_bin_dir = base_dir.join("out").join("bin");
-
+    let src_dir = base_dir.join("src");
+    // TODO: Consider a more professional output directory
+    let out_bin_dir = base_dir.join("build").join("bin");
     fs::create_dir_all(&out_bin_dir)?;
     fs::create_dir_all(&cache_dir)?;
 

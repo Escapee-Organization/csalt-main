@@ -2,7 +2,6 @@
 // If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org.
 // Copyright (c) 2026 Escapee Organization
 
-use std::error::Error;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write;
