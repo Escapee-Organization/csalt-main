@@ -4,7 +4,7 @@
 
 use clap::{ArgAction, Parser};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Command;
 
 pub mod fs_utils;
@@ -43,28 +43,51 @@ pub enum Commands {
     #[command(name = "update")]
     Update,
 
-    #[command(name = "build")]
+    /// Build using a compiler
+    #[command(name = "build-manual")]
     Compile(CompileArgs),
 }
 
 #[derive(Parser, Debug)]
 pub struct CompileArgs {
-    /// The main input source file or target directory
-    #[arg(default_value = ".")]
-    input: String,
-
-    /// Explicitly set the output binary file destination
-    #[arg(short = 'o', long = "output", default_value = "main")]
-    output: String,
-
-    // TODO: Make this Option<String> so we can check the .toml for the backend
-    /// Choose the host compiler driver backend [possible values: clang, gcc, zig]
-    #[arg(short = 'b', long = "backend", default_value = "clang")]
+    /// Choose the host compiler driver backend, such as clang, gcc, zig, etc
+    #[arg(short = 'b', long = "backend")]
     backend: String,
 
     /// Trailing parameters forwarded completely intact to the backend compiler layer
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, action = ArgAction::Append)]
     backend_flags: Vec<String>,
+}
+
+enum CompilerBackend {
+    Clang,
+    Gcc,
+    Zig,
+    MSVC,
+    ClangCl,
+}
+
+impl CompilerBackend {
+    fn from_string(s: &str) -> Result<Self, &'static str> {
+        match s {
+            "clang" => Ok(Self::Clang),
+            "gcc" => Ok(Self::Gcc),
+            "zig" => Ok(Self::Zig),
+            "msvc" => Ok(Self::MSVC),
+            "clang-cl" => Ok(Self::ClangCl),
+            _ => Err("unknown backend"),
+        }
+    }
+
+    fn generate_command(&self) -> Command {
+        match self {
+            Self::Clang => Command::new("clang"),
+            Self::Gcc => Command::new("gcc"),
+            Self::Zig => Command::new("zig"),
+            Self::MSVC => Command::new("cl"),
+            Self::ClangCl => Command::new("clang-cl"),
+        }
+    }
 }
 
 // TODO: Implement GitHub release tags and actions
@@ -107,18 +130,20 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
     // TODO: Consider a more professional output directory
     let out_bin_dir = base_dir.join("build").join("bin");
     fs::create_dir_all(&out_bin_dir)?;
-    fs::create_dir_all(&cache_dir)?;
 
-    if src_dir.exists() && src_dir.is_dir() {
-        for entry in fs::read_dir(&src_dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            if path.is_file() {
-                if let Some(file_name) = path.file_name() {
-                    let dest_path = cache_dir.join(file_name);
-                    fs::copy(&path, &dest_path)?;
-                }
+    for entry in fs::read_dir(&base_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        // Match against path name to see if we should copy it
+        match path.file_name().and_then(|n| n.to_str()) {
+            Some(".csalt") => {}
+            Some("Salt.toml") => {}
+            Some("Salt.lock") => {}
+            Some(file_name) => {
+                let dest_path = cache_dir.join(file_name);
+                fs::copy(&path, &dest_path)?;
             }
+            None => {}
         }
     }
 
@@ -132,25 +157,13 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
                 files_to_compile.push(path);
             }
         }
-    } else {
-        for input_target in args.input.split_whitespace() {
-            let input_path = Path::new(input_target);
-            if let Some(file_name) = input_path.file_name() {
-                let cached_target = cache_dir.join(file_name);
-                if cached_target.exists() {
-                    files_to_compile.push(cached_target);
-                } else {
-                    println!(
-                        "[warning]\nTarget source file not found in staging cache: {:?}",
-                        file_name
-                    );
-                }
-            }
-        }
     }
 
     if files_to_compile.is_empty() {
-        return Err("No files to compile".into());
+        return Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "No files to compile",
+        )));
     }
 
     // TODO: Transpile the input files
@@ -158,19 +171,46 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
 
     // TODO: Add in the .toml check using short-circuit evaluation
     // Read in the target compiler from the .toml, otherwise use the default (clang). CLI flag overrides
-    let mut target_compiler = Command::new(&args.backend);
-    let binary_name = &args.output;
-    let output_executable = out_bin_dir.join(binary_name);
+    let compiler_backend = CompilerBackend::from_string(args.backend.as_str())?;
+    let mut target_compiler = compiler_backend.generate_command();
 
-    for file in &files_to_compile {
-        target_compiler.arg(file.to_str().unwrap());
-    }
-
-    target_compiler.arg("-o");
-    target_compiler.arg(&output_executable);
-
-    for flag in &args.backend_flags {
-        target_compiler.arg(flag);
+    // If the user provided no flags, we are just going to compile the files as-is.
+    // Otherwise, the user provided flags will be passed through to the target compiler
+    if args.backend_flags.is_empty() {
+        let output_executable = out_bin_dir.join(
+            base_dir
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("a.out"),
+        );
+        match compiler_backend {
+            CompilerBackend::Clang | CompilerBackend::Gcc => {
+                target_compiler.arg("-o");
+                target_compiler.arg(&output_executable);
+                for file in &files_to_compile {
+                    target_compiler.arg(file.to_str().unwrap());
+                }
+            }
+            CompilerBackend::Zig => {
+                target_compiler.arg("cc");
+                target_compiler.arg("-o");
+                target_compiler.arg(&output_executable);
+                for file in &files_to_compile {
+                    target_compiler.arg(file.to_str().unwrap());
+                }
+            }
+            CompilerBackend::ClangCl | CompilerBackend::MSVC => {
+                target_compiler.arg(format!("/Fe:{}", output_executable.to_str().unwrap()));
+                for file in &files_to_compile {
+                    target_compiler.arg(file.to_str().unwrap());
+                }
+            }
+        }
+    } else {
+        // NOTE: We pass the flags directly to the target compiler as-is, without any processing of our own
+        for flag in &args.backend_flags {
+            target_compiler.arg(flag);
+        }
     }
 
     let status = target_compiler.status()?;

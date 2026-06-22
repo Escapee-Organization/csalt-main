@@ -8,7 +8,7 @@
 use clap::Parser;
 #[cfg(feature = "experimental")]
 use csalt::update_csalt;
-use csalt::{Args, Commands, compile_project};
+use csalt::{Args, Commands, build_manual_project};
 use dirs::home_dir;
 use std::io;
 use std::path::PathBuf;
@@ -55,7 +55,7 @@ fn main() {
             }
         }
         Commands::Compile(salt_args) => {
-            if let Err(e) = compile_project(salt_args) {
+            if let Err(e) = build_manual_project(salt_args) {
                 eprintln!("[ERROR]\n{}", e);
                 std::process::exit(1);
             }
