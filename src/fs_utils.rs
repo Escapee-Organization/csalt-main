@@ -4,50 +4,9 @@
 
 use std::fs;
 use std::fs::OpenOptions;
+use std::io::ErrorKind;
 use std::io::Write;
 use std::path::Path;
-
-pub fn verify_workspace(workspace: &str) -> Result<(), Box<dyn Error>> {
-    // Check if the workspace directory exists
-    // Then, check if the directory's structure is valid (Salt.toml, Salt.lock, .csalt/, etc)
-    // If there is no manual Makefile or CMakeLists.txt, etc, update the Salt.lock file
-    // Finally, return Ok(true)
-    let path = Path::new(workspace);
-    if !path.is_dir() {
-        return Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "[ERROR]\nWorkspace directory not found",
-        )));
-    }
-
-    // Check if the directory's structure is valid
-    if !path.join("Salt.toml").is_file() {
-        return Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "[ERROR]\n'Salt.toml' not found",
-        )));
-    }
-    if !path.join("Salt.lock").is_file() {
-        return Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "[ERROR]\n'Salt.lock' not found",
-        )));
-    }
-    if !path.join(".csalt").is_dir() {
-        return Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "[ERROR]\n'.csalt/' hidden directory not found",
-        )));
-    }
-
-    // Check if there is no manual Makefile or CMakeLists.txt, etc
-    if path.join("Makefile").is_file() || path.join("CMakeLists.txt").is_file() {
-        // Edit the Salt.lock file
-        println!("[warning]\nManual Makefile or CMakeLists.txt found, updating 'Salt.lock'");
-    }
-
-    Ok(())
-}
 
 pub fn new_project(name: &str, dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     // Make new directory, move into it, and create all elements
