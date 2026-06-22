@@ -20,6 +20,7 @@ pub struct Args {
 
 #[derive(Parser, Debug)]
 pub enum Commands {
+    /// Initialize a new project in the current directory
     #[command(name = "init")]
     Init {
         /// The directory to initialize the project in
@@ -27,6 +28,7 @@ pub enum Commands {
         dir: PathBuf,
     },
 
+    /// Create a new project directory
     #[command(name = "new")]
     New {
         /// The name of the new project
@@ -106,19 +108,12 @@ pub fn update_csalt() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-pub fn run(workspace: &str) -> Result<(), Box<dyn std::error::Error>> {
-    fs_utils::verify_workspace(workspace)?;
-
-    // TODO: run the engine
-    Ok(())
-}
-
-/*  To compile a project, we must follow specific steps:
+/*  To compile a project manually, we must follow specific steps:
  *  1. Check Salt.lock's cache to see what changed
  *  2. Run the header file engine
  *  3. Transpile the source code
  *  4. Link the transpiled code with the backend compiler
- *  5. Output the compiled binary to out/
+ *  5. Output the compiled binary to build/
  */
 pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error::Error>> {
     println!("[info]\nCompiling project...");
@@ -169,7 +164,6 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
     // TODO: Transpile the input files
     // transpile::transpile(...)?;
 
-    // TODO: Add in the .toml check using short-circuit evaluation
     // Read in the target compiler from the .toml, otherwise use the default (clang). CLI flag overrides
     let compiler_backend = CompilerBackend::from_string(args.backend.as_str())?;
     let mut target_compiler = compiler_backend.generate_command();
