@@ -201,16 +201,21 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
                 }
             }
         }
+
+        let status = target_compiler.current_dir(cache_dir).status()?;
+        if !status.success() {
+            return Err("Failed to compile".into());
+        }
     } else {
         // NOTE: We pass the flags directly to the target compiler as-is, without any processing of our own
         for flag in &args.backend_flags {
             target_compiler.arg(flag);
         }
-    }
 
-    let status = target_compiler.status()?;
-    if !status.success() {
-        return Err("Failed to compile".into());
+        let status = target_compiler.status()?;
+        if !status.success() {
+            return Err("Failed to compile".into());
+        }
     }
 
     Ok(())
