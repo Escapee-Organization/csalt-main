@@ -126,6 +126,7 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
     let out_bin_dir = base_dir.join("build").join("bin");
     fs::create_dir_all(&out_bin_dir)?;
 
+    // FIXME: Copy all files in the main directory EXCEPT .csalt/, Salt.toml, and Salt.lock to .csalt/
     for entry in fs::read_dir(&base_dir)? {
         let entry = entry?;
         let path = entry.path();

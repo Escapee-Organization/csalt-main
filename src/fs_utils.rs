@@ -23,7 +23,6 @@ pub fn new_project(name: &str, dir: &Path) -> Result<(), Box<dyn std::error::Err
     // Make new directory, move into it, and create all elements
     let path = Path::new(dir).join(name);
     fs::create_dir_all(&path)?;
-
     init_project(&path)?;
 
     Ok(())
@@ -63,6 +62,7 @@ edition = "2026"
             return Err(Box::new(e));
         }
     }
+
     match OpenOptions::new()
         .write(true)
         .create(true)
@@ -123,6 +123,7 @@ edition = "2026"
         }
         _ => {}
     }
+
     match fs::exists(Path::new(dir).join(".gitignore")) {
         Ok(false) => {
             let mut gitignore = OpenOptions::new()
