@@ -2,11 +2,22 @@
 // If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org.
 // Copyright (c) 2026 Escapee Organization
 
+use std::env::home_dir;
 use std::fs;
 use std::fs::OpenOptions;
-use std::io::ErrorKind;
-use std::io::Write;
+use std::io::{Error, ErrorKind, Write};
 use std::path::Path;
+use std::path::PathBuf;
+
+pub fn ensure_cache_dir() -> Result<PathBuf, Error> {
+    let home = home_dir().ok_or(Error::new(
+        ErrorKind::NotFound,
+        "[ERROR]\nhome directory not found",
+    ))?;
+    let cache_dir = home.join(".csalt");
+    std::fs::create_dir_all(&cache_dir).map_err(|e| Error::new(ErrorKind::Other, e))?;
+    Ok(cache_dir)
+}
 
 pub fn new_project(name: &str, dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     // Make new directory, move into it, and create all elements

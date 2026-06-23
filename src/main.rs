@@ -7,23 +7,10 @@ use clap::Parser;
 #[cfg(feature = "experimental")]
 use csalt::update_csalt;
 use csalt::{Args, Commands, build_manual_project};
-use dirs::home_dir;
-use std::io;
-use std::path::PathBuf;
 pub mod fs_utils;
 
-fn ensure_cache_dir() -> Result<PathBuf, io::Error> {
-    let home = home_dir().ok_or(io::Error::new(
-        io::ErrorKind::NotFound,
-        "[ERROR]\nhome directory not found",
-    ))?;
-    let cache_dir = home.join(".csalt");
-    std::fs::create_dir_all(&cache_dir).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-    Ok(cache_dir)
-}
-
 fn main() {
-    if let Err(e) = ensure_cache_dir() {
+    if let Err(e) = fs_utils::ensure_cache_dir() {
         eprintln!("[ERROR]\n{}", e);
         std::process::exit(1);
     }
