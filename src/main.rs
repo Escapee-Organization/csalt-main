@@ -45,5 +45,7 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        #[cfg(feature = "experimental")]
+        Commands::Build(_salt_args) => {}
     }
 }

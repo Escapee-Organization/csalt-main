@@ -48,11 +48,28 @@ pub enum Commands {
     /// Build using a compiler
     #[command(name = "build-manual")]
     Compile(CompileArgs),
+
+    #[cfg(feature = "experimental")]
+    /// Build using a build system
+    #[command(name = "build")]
+    Build(BuildArgs),
 }
 
 #[derive(Parser, Debug)]
 pub struct CompileArgs {
     /// Choose the host compiler driver backend, such as clang, gcc, zig, etc
+    #[arg(short = 'b', long = "backend")]
+    backend: String,
+
+    /// Trailing parameters forwarded completely intact to the backend compiler layer
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true, action = ArgAction::Append)]
+    backend_flags: Vec<String>,
+}
+
+#[cfg(feature = "experimental")]
+#[derive(Parser, Debug)]
+pub struct BuildArgs {
+    /// Choose the host build system backend, such as cmake3-15, zig, etc
     #[arg(short = 'b', long = "backend")]
     backend: String,
 
