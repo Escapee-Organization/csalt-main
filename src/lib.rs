@@ -82,7 +82,7 @@ enum CompilerBackend {
     Clang,
     Gcc,
     Zig,
-    MSVC,
+    Msvc,
     ClangCl,
 }
 
@@ -92,7 +92,7 @@ impl CompilerBackend {
             "clang" => Ok(Self::Clang),
             "gcc" => Ok(Self::Gcc),
             "zig" => Ok(Self::Zig),
-            "msvc" => Ok(Self::MSVC),
+            "msvc" => Ok(Self::Msvc),
             "clang-cl" => Ok(Self::ClangCl),
             _ => Err("unknown backend"),
         }
@@ -103,7 +103,7 @@ impl CompilerBackend {
             Self::Clang => Command::new("clang"),
             Self::Gcc => Command::new("gcc"),
             Self::Zig => Command::new("zig"),
-            Self::MSVC => Command::new("cl"),
+            Self::Msvc => Command::new("cl"),
             Self::ClangCl => Command::new("clang-cl"),
         }
     }
@@ -211,7 +211,7 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
                     target_compiler.arg(file.to_str().unwrap());
                 }
             }
-            CompilerBackend::ClangCl | CompilerBackend::MSVC => {
+            CompilerBackend::ClangCl | CompilerBackend::Msvc => {
                 target_compiler.arg(format!("/Fe:{}", output_executable.to_str().unwrap()));
                 for file in &files_to_compile {
                     target_compiler.arg(file.to_str().unwrap());
