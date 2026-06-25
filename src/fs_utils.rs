@@ -2,12 +2,11 @@
 // If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org.
 // Copyright (c) 2026 Escapee Organization
 
-use std::env::home_dir;
+use dirs::home_dir;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::{Error, ErrorKind, Write};
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub fn ensure_cache_dir() -> Result<PathBuf, Error> {
     let home = home_dir().ok_or(Error::new(
