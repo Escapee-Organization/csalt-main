@@ -3,7 +3,7 @@
 ## Table of Contents
 
 - [Overview](#overview)
-- [Usage of AI](#usage-of-ai)
+  - [Usage of AI](#usage-of-ai)
 - [Phase 1 of C-Salt (Second half of 2026)](#phase-1-of-c-salt-second-half-of-2026)
 - [Phase 2 of C-Salt (First half of 2027)](#phase-2-of-c-salt-first-half-of-2027)
 - [Contributing](#contributing)
