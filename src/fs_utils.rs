@@ -61,7 +61,7 @@ pub fn init_project(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     match OpenOptions::new()
         .write(true)
         .create(true)
-        .open(Path::new(dir).join("Salt.lock"))
+        .open(dir.join("Salt.lock"))
     {
         Ok(mut lock_file) => writeln!(lock_file, "")?,
         Err(e) if e.kind() == ErrorKind::AlreadyExists => {
@@ -72,20 +72,19 @@ pub fn init_project(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let path = Path::new(dir);
-    fs::create_dir_all(path.join("src"))?;
-    fs::create_dir_all(path.join("include"))?;
-    fs::create_dir_all(path.join("build"))?;
-    fs::create_dir_all(path.join("tests"))?;
-    fs::create_dir_all(path.join(".csalt"))?;
+    fs::create_dir_all(dir.join("src"))?;
+    fs::create_dir_all(dir.join("include"))?;
+    fs::create_dir_all(dir.join("build"))?;
+    fs::create_dir_all(dir.join("tests"))?;
+    fs::create_dir_all(dir.join(".csalt"))?;
 
     // First check if there are any files within the src directory
     // If empty, write in a hello world with a return 0 and import stdio.h
-    if fs::read_dir(path.join("src"))?.next().is_none() {
+    if fs::read_dir(dir.join("src"))?.next().is_none() {
         match OpenOptions::new()
             .write(true)
             .create_new(true)
-            .open(Path::new(dir).join("src").join("main.c"))
+            .open(dir.join("src").join("main.c"))
         {
             Ok(mut main_file) => {
                 writeln!(main_file, "#include <stdio.h>")?;
@@ -104,12 +103,12 @@ pub fn init_project(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    match fs::exists(Path::new(dir).join("README.md")) {
+    match fs::exists(dir.join("README.md")) {
         Ok(false) => {
             let mut read_me = OpenOptions::new()
                 .write(true)
                 .create_new(true)
-                .open(Path::new(dir).join("README.md"))?;
+                .open(dir.join("README.md"))?;
             writeln!(
                 read_me,
                 "# {}\n",
@@ -119,12 +118,12 @@ pub fn init_project(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         _ => {}
     }
 
-    match fs::exists(Path::new(dir).join(".gitignore")) {
+    match fs::exists(dir.join(".gitignore")) {
         Ok(false) => {
             let mut gitignore = OpenOptions::new()
                 .write(true)
                 .create_new(true)
-                .open(Path::new(dir).join(".gitignore"))?;
+                .open(dir.join(".gitignore"))?;
             writeln!(gitignore, "build/")?;
             writeln!(gitignore, ".cache/")?;
             writeln!(gitignore, ".csalt/")?;
