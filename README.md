@@ -39,7 +39,20 @@ The following will be considered for the time between Phase 1 and Phase 2 of C-S
 
 ## Phase 2 of C-Salt (2027?)
 
- 
+* ### Formal verification
+  * Perform formal verification on C-Salt code to ensure mathematical safety. To keep it simple for now, we are considering a "binding" approach where a block of requirements is "linked" to a specific named function or block of code.
+  * &nbsp;
+    ```c
+    __verify_this my_function {
+        __require(...);
+        __ensure(...);
+    }
+
+    int my_function() {
+        
+    }
+    ```
+
 ## Contributing
 See the [CONTRIBUTING](CONTRIBUTING.md) file for details.
 
