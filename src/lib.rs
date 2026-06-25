@@ -7,6 +7,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
+pub mod config;
 pub mod fs_utils;
 pub mod transpile;
 

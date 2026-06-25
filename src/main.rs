@@ -7,6 +7,7 @@ use clap::Parser;
 #[cfg(feature = "experimental")]
 use csalt::update_csalt;
 use csalt::{Args, Commands, build_manual_project};
+pub mod config;
 pub mod fs_utils;
 
 fn main() {

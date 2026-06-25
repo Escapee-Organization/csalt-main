@@ -2,6 +2,7 @@
 // If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org.
 // Copyright (c) 2026 Escapee Organization
 
+use crate::config::{BuildSection, PackageSection, SaltToml};
 use dirs::home_dir;
 use std::fs;
 use std::fs::OpenOptions;
@@ -29,37 +30,32 @@ pub fn new_project(name: &str, dir: &Path) -> Result<(), Box<dyn std::error::Err
 
 pub fn init_project(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(dir)?;
+
+    let project_name = dir.file_name().and_then(|n| n.to_str()).unwrap_or("");
     // Rewrite the Salt.toml and Salt.lock files with Serde
-    let toml_content = format!(
-        r#"[package]
-name = "{}"
-version = "0.1.0"
-authors = [""]
-main = "main.c"
+    let toml_content = SaltToml {
+        package: PackageSection {
+            name: project_name.to_string(),
+            version: "0.1.0".to_string(),
+            authors: vec!["".to_string()],
+            description: "".to_string(),
+        },
+        build: BuildSection {
+            main: "main.c".to_string(),
+            build: "cmake3.28".to_string(),
+            edition: "2011".to_string(),
+            compiler: "clang".to_string(),
+            settings: std::collections::BTreeMap::new(),
+        },
+    };
 
-[build]
-target = ""
-edition = "2026"
-
-[dependencies]
-
-[settings]
-"#,
-        dir.file_name().and_then(|n| n.to_str()).unwrap_or("")
-    );
-
-    match OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(Path::new(dir).join("Salt.toml"))
-    {
-        Ok(mut toml_file) => writeln!(toml_file, "{}", toml_content)?,
-        Err(e) if e.kind() == ErrorKind::AlreadyExists => {
-            println!("Salt.toml already exists: {}", e);
-        }
-        Err(e) => {
-            return Err(Box::new(e));
-        }
+    if !dir.join("Salt.toml").exists() {
+        fs::write(
+            dir.join("Salt.toml"),
+            toml::to_string_pretty(&toml_content)?,
+        )?;
+    } else {
+        println!("Salt.toml already exists, skipping creation.");
     }
 
     match OpenOptions::new()
