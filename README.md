@@ -29,6 +29,14 @@ However, the main idea of the project was created via a human's idea bouncing of
 * ### Cache results for incremental builds
   * Cache results to avoid rebuilding unchanged files, improving build performance in fresh projects.
 
+The following will be considered for the time between Phase 1 and Phase 2 of C-Salt:
+* ### Auto-generation of Foreign Function Interfaces (FFIs)
+  * Automatically generate FFIs for other languages needing to interface with C, reducing manual effort and potential errors. These should go into the `build/bindings/` directory.
+  * Languages considered are Rust, Zig, Python, and Go for now. Please leave an issue if you need support for a different language.
+* ### New syntactic additions
+  * C may be able to get syntax which will enable it to perform modern safety alongside becoming more readable and clean thanks to C-Salt's nature as a transpiler. However, this is not a priority for the time being, and will not be for a long time. Unfortunately, the syntactic roadmap does not have a clear file  detailing each addition considered.
+  * Syntax considered for the future are: `__defer`, `__match`, etc.
+
 ## Phase 2 of C-Salt (2027?)
 
  
