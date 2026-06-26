@@ -183,8 +183,12 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
     // TODO: Transpile the input files
     // transpile::transpile(...)?;
 
-    // Read in the target compiler from the .toml, otherwise use the default (clang). CLI flag overrides
-    let compiler_backend = CompilerBackend::from_string(args.backend.as_str())?;
+    // Read in the target compiler from the .toml. CLI flag overrides
+    let compiler_backend = if let Some(backend) = &args.backend {
+        CompilerBackend::from_string(backend.as_str())?
+    } else {
+        CompilerBackend::Clang
+    };
     let mut target_compiler = compiler_backend.generate_command();
 
     // If the user provided no flags, we are just going to compile the files as-is.
