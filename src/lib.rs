@@ -2,10 +2,14 @@
 // If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org.
 // Copyright (c) 2026 Escapee Organization
 
+use crate::config::{FileState, SaltLock, SaltToml};
 use clap::{ArgAction, Parser};
+use sha2::{Digest, Sha256};
 use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::LockResult;
 
 pub mod config;
 pub mod fs_utils;
@@ -110,6 +114,9 @@ impl CompilerBackend {
     }
 }
 
+const LOCK_FILE_PATH: &str = "./Salt.lock";
+const LOCK_VERSION: &str = "0.1.0";
+
 // TODO: Implement GitHub release tags and actions
 #[cfg(feature = "experimental")]
 pub fn update_csalt() -> Result<(), Box<dyn std::error::Error>> {
@@ -124,6 +131,42 @@ pub fn update_csalt() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("[info]\nUpdate completed successfully.");
     Ok(())
+}
+
+fn load_or_init_lock(current_toml: &SaltToml) -> Result<SaltLock, Box<dyn std::error::Error>> {
+    let lock_path = Path::new(LOCK_FILE_PATH);
+    if lock_path.exists() {
+        if let Ok(contents) = fs::read_to_string(lock_path) {
+            if let Ok(lock) = serde_json::from_str::<SaltLock>(&contents) {
+                if lock.manifest == *current_toml {
+                    return Ok(lock);
+                }
+            }
+        }
+    }
+    Ok(SaltLock {
+        lock_version: LOCK_VERSION.to_string(),
+        manifest: current_toml.clone(),
+        files: std::collections::BTreeMap::new(),
+    })
+}
+
+pub fn sync_workspace(
+    current_toml: &SaltToml,
+    detected_source_files: Vec<String>,
+) -> Result<std::collections::BTreeMap<String, FileState>, Box<dyn std::error::Error>> {
+    let mut lock = load_or_init_lock(current_toml)?;
+    let mut updated_files = std::collections::BTreeMap::new();
+    let cache_dir = Path::new(".csalt");
+
+    for file_paths in detected_source_files {
+        let file = Path::new(&file_paths);
+        if !file.exists() {
+            continue;
+        }
+    }
+
+    Ok(updated_files)
 }
 
 /*  To compile a project manually, we must follow specific steps:
