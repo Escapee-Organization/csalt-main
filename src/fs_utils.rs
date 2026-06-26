@@ -61,6 +61,7 @@ pub fn init_project(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
             toml::to_string_pretty(&toml_content)?,
         )?;
     } else {
+        toml_content.validate()?;
         println!("Salt.toml already exists, skipping creation.");
     }
 

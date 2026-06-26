@@ -37,6 +37,36 @@ pub struct SaltToml {
     pub bin: Vec<BinVector>,
 }
 
+impl SaltToml {
+    /// Front-door validation guard to ensure user input makes physical sense
+    pub fn validate(&self) -> Result<(), String> {
+        // 1. Ensure the package name isn't blank
+        if self.package.name.trim().is_empty() {
+            return Err("Package name cannot be empty in Salt.toml".into());
+        }
+
+        // 2. Prevent a completely hollow config with zero compilation targets
+        if self.bin.is_empty() {
+            return Err("At least one [[bin]] target must be declared".into());
+        }
+
+        // 3. Verify target definitions aren't broken
+        for target in &self.bin {
+            if target.main.trim().is_empty() {
+                return Err("Every [[bin]] target must specify a 'main' entry file".into());
+            }
+            if !target.main.ends_with(".c") {
+                return Err(format!(
+                    "The main target '{}' must be a valid C source file (.c)",
+                    target.main
+                ));
+            }
+        }
+
+        Ok(())
+    }
+}
+
 // Salt.lock
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileState {
