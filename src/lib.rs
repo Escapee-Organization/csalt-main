@@ -47,7 +47,7 @@ pub enum Commands {
     Update,
 
     /// Build using a compiler
-    #[command(name = "build-manual")]
+    #[command(name = "compile")]
     Compile(CompileArgs),
 
     #[cfg(feature = "experimental")]
@@ -60,7 +60,7 @@ pub enum Commands {
 pub struct CompileArgs {
     /// Choose the host compiler driver backend, such as clang, gcc, zig, etc
     #[arg(short = 'b', long = "backend")]
-    backend: String,
+    backend: Option<String>,
 
     /// Trailing parameters forwarded completely intact to the backend compiler layer
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, action = ArgAction::Append)]
@@ -70,9 +70,9 @@ pub struct CompileArgs {
 #[cfg(feature = "experimental")]
 #[derive(Parser, Debug)]
 pub struct BuildArgs {
-    /// Choose the host build system backend, such as cmake3-15, zig, etc
+    /// Choose the host build system backend, such as cmake3_15, zig, etc
     #[arg(short = 'b', long = "backend")]
-    backend: String,
+    backend: Option<String>,
 
     /// Trailing parameters forwarded completely intact to the backend compiler layer
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, action = ArgAction::Append)]
