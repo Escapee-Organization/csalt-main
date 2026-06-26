@@ -4,7 +4,8 @@
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+// Salt.toml
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PackageSection {
     pub name: String,
     pub version: String,
@@ -12,17 +13,42 @@ pub struct PackageSection {
     pub description: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BuildSection {
-    pub main: String,
     pub build: String,
     pub edition: String,
     pub compiler: String,
-    pub settings: std::collections::BTreeMap<String, String>,
+    pub shared_src: Vec<String>,
+    pub shared_include: Vec<String>,
+    pub custom: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct BinVector {
+    pub main: String,
+    pub src: Vec<String>,
+    pub include: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SaltToml {
     pub package: PackageSection,
     pub build: BuildSection,
+    pub bin: Vec<BinVector>,
+}
+
+// Salt.lock
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileState {
+    pub fingerprint: String,
+    pub shadow_path: String,
+    #[serde(default)]
+    pub dependencies: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SaltLock {
+    pub lock_version: String,
+    pub manifest: SaltToml,
+    pub files: std::collections::BTreeMap<String, FileState>,
 }

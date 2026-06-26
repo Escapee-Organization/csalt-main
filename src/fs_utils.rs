@@ -2,7 +2,7 @@
 // If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org.
 // Copyright (c) 2026 Escapee Organization
 
-use crate::config::{BuildSection, PackageSection, SaltToml};
+use crate::config::{BinVector, BuildSection, PackageSection, SaltToml};
 use dirs::home_dir;
 use std::fs;
 use std::fs::OpenOptions;
@@ -41,12 +41,18 @@ pub fn init_project(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
             description: "".to_string(),
         },
         build: BuildSection {
-            main: "main.c".to_string(),
             build: "cmake3.28".to_string(),
             edition: "2011".to_string(),
             compiler: "clang".to_string(),
-            settings: std::collections::BTreeMap::new(),
+            custom: Vec::new(),
+            shared_src: vec!["src".to_string()],
+            shared_include: vec!["include".to_string()],
         },
+        bin: vec![BinVector {
+            main: "src/main.c".to_string(),
+            src: vec![],
+            include: vec![],
+        }],
     };
 
     if !dir.join("Salt.toml").exists() {
