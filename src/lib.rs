@@ -13,7 +13,7 @@ pub mod transpile;
 
 /// csalt - A CLI tool and language that just works with C
 #[derive(Parser, Debug)]
-#[command(author = "BurningHot687", version, about, long_about = None, name = "csalt")]
+#[command(author = "Escapee-Organization", version, about, long_about = None, name = "csalt")]
 pub struct Args {
     #[command(subcommand)]
     pub command: Commands,
