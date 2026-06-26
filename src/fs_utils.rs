@@ -98,7 +98,7 @@ pub fn init_project(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
                 writeln!(main_file, "int main() {{")?;
                 writeln!(main_file, "    printf(\"Hello, World!\\n\");")?;
                 writeln!(main_file, "    return 0;")?;
-                writeln!(main_file, "}}\n")?;
+                writeln!(main_file, "}}")?;
             }
             Err(e) if e.kind() == ErrorKind::AlreadyExists => {
                 println!("main.c already exists");
