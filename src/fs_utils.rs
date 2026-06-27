@@ -45,6 +45,7 @@ pub fn init_project(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
             edition: "2011".to_string(),
             compiler: "clang".to_string(),
             custom: Vec::new(),
+            main: "src/main.c".to_string(),
             shared_src: vec!["src".to_string()],
             shared_include: vec!["include".to_string()],
         },
