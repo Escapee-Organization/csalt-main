@@ -44,15 +44,18 @@ pub fn init_project(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
             build: "cmake3.28".to_string(),
             edition: "2011".to_string(),
             compiler: "clang".to_string(),
-            custom: Vec::new(),
+            compiler_flags: Vec::new(),
+            linker_flags: Vec::new(),
             main: "src/main.c".to_string(),
-            shared_src: vec!["src".to_string()],
-            shared_include: vec!["include".to_string()],
+            src: vec!["src".to_string()],
+            include: vec!["include".to_string()],
         },
         bin: vec![BinVector {
             main: "src/main.c".to_string(),
             src: vec![],
             include: vec![],
+            compiler_flags: Vec::new(),
+            linker_flags: Vec::new(),
         }],
     };
 

@@ -19,16 +19,20 @@ pub struct BuildSection {
     pub edition: String,
     pub compiler: String,
     pub main: String,
-    pub shared_src: Vec<String>,
-    pub shared_include: Vec<String>,
-    pub custom: Vec<String>,
+    pub src: Vec<String>,
+    pub include: Vec<String>,
+    pub compiler_flags: Vec<String>,
+    pub linker_flags: Vec<String>,
 }
 
+// NOTE: We will ignore the bin section for now
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BinVector {
     pub main: String,
     pub src: Vec<String>,
     pub include: Vec<String>,
+    pub compiler_flags: Vec<String>,
+    pub linker_flags: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
