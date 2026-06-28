@@ -66,6 +66,14 @@ pub struct CompileArgs {
     #[arg(short = 'b', long = "backend")]
     backend: Option<String>,
 
+    /// Choose the mode of transpilation, such as default, in-place, and clean
+    #[arg(short = 'm', long = "mode")]
+    mode: Option<String>,
+
+    /// Run the compiled binary after transpilation
+    #[arg(short = 'r', long = "run")]
+    run: bool,
+
     /// Trailing parameters forwarded completely intact to the backend compiler layer
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, action = ArgAction::Append)]
     backend_flags: Vec<String>,
