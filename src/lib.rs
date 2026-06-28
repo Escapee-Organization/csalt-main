@@ -71,7 +71,7 @@ pub struct CompileArgs {
     mode: Option<String>,
 
     /// Run the compiled binary after transpilation
-    #[arg(short = 'r', long = "run")]
+    #[arg(short = 'r', long = "run", conflicts_with = "backend_flags")]
     run: bool,
 
     /// Trailing parameters forwarded completely intact to the backend compiler layer
