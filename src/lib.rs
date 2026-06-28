@@ -58,12 +58,6 @@ pub enum Commands {
     /// Build using a build system
     #[command(name = "build")]
     Build(BuildArgs),
-
-    // TODO: Run the project
-    #[cfg(feature = "experimental")]
-    /// Run the project
-    #[command(name = "run")]
-    Run,
 }
 
 #[derive(Parser, Debug)]
