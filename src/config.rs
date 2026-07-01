@@ -47,12 +47,18 @@ impl SaltToml {
 
         // 2. Verify target definitions aren't broken
         for target in &self.unit {
-            if target.main.trim().is_empty() {
-                return Err("Every [[bin]] target must specify a 'main' entry file".into());
-            }
-            if !target.main.ends_with(".c") {
+            if target.kind != "bin".to_string() && target.kind != "lib".to_string() {
                 return Err(format!(
-                    "The main target '{}' must be a valid C source file (.c)",
+                    "Kind '{}' in Salt.toml should be either 'bin' or 'lib'.",
+                    target.kind
+                ));
+            }
+            if target.main.trim().is_empty() && target.kind == "bin".to_string() {
+                return Err("Every [[unit]] bin target must specify a 'main' entry file".into());
+            }
+            if !(target.main.ends_with(".c") || target.main.ends_with(".csal")) {
+                return Err(format!(
+                    "The main target '{}' must be a valid C source file (.c or .csal)",
                     target.main
                 ));
             }
