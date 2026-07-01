@@ -71,7 +71,7 @@ impl SaltToml {
 // Salt.lock
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileState {
-    pub fingerprint: String,
+    pub shadow_hash: String,
     pub shadow_path: String,
     #[serde(default)]
     pub dependencies: Vec<String>,
@@ -80,6 +80,7 @@ pub struct FileState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SaltLock {
     pub lock_version: String,
+    pub manifest_hash: String,
     pub manifest: SaltToml,
     pub files: std::collections::BTreeMap<String, FileState>,
 }

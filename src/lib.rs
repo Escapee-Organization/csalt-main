@@ -10,6 +10,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::LockResult;
+use toml;
 
 pub mod config;
 pub mod fs_utils;
@@ -141,6 +142,14 @@ pub fn update_csalt() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn compute_hash(file_string: &str) -> String {
+    let hash_bytes = Sha256::digest(file_string.as_bytes());
+    hash_bytes
+        .iter()
+        .map(|byte| format!("{:02x}", byte))
+        .collect::<String>()
+}
+
 fn load_or_init_lock(current_toml: &SaltToml) -> Result<SaltLock, Box<dyn std::error::Error>> {
     let lock_path = Path::new(LOCK_FILE_PATH);
     if lock_path.exists() {
@@ -152,8 +161,12 @@ fn load_or_init_lock(current_toml: &SaltToml) -> Result<SaltLock, Box<dyn std::e
             }
         }
     }
+
+    let manifest_hash = compute_hash(&toml::to_string_pretty(current_toml)?.as_str());
+
     Ok(SaltLock {
         lock_version: LOCK_VERSION.to_string(),
+        manifest_hash,
         manifest: current_toml.clone(),
         files: std::collections::BTreeMap::new(),
     })
