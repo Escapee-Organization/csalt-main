@@ -18,30 +18,26 @@ pub struct BuildSection {
     pub build: String,
     pub edition: String,
     pub compiler: String,
-    pub main: String,
-    pub src: Vec<String>,
-    pub include: Vec<String>,
-    pub compiler_flags: Vec<String>,
-    pub linker_flags: Vec<String>,
 }
 
-// NOTE: We will ignore the bin section for now
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct BinVector {
+pub struct UnitVector {
+    pub kind: String,
     pub main: String,
     pub src: Vec<String>,
-    pub include: Vec<String>,
-    pub compiler_flags: Vec<String>,
-    pub linker_flags: Vec<String>,
+    pub include: Option<Vec<String>>,
+    pub compiler_flags: Option<Vec<String>>,
+    pub linker_flags: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SaltToml {
     pub package: PackageSection,
     pub build: BuildSection,
-    pub bin: Vec<BinVector>,
+    pub unit: Vec<UnitVector>,
 }
 
+// TODO: Validate everything
 impl SaltToml {
     pub fn validate(&self) -> Result<(), String> {
         // 1. Ensure the package name isn't blank
@@ -50,7 +46,7 @@ impl SaltToml {
         }
 
         // 2. Verify target definitions aren't broken
-        for target in &self.bin {
+        for target in &self.unit {
             if target.main.trim().is_empty() {
                 return Err("Every [[bin]] target must specify a 'main' entry file".into());
             }

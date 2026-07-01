@@ -2,7 +2,7 @@
 // If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org.
 // Copyright (c) 2026 Escapee Organization
 
-use crate::config::{BinVector, BuildSection, PackageSection, SaltToml};
+use crate::config::{BuildSection, PackageSection, SaltToml, UnitVector};
 use dirs::home_dir;
 use std::fs;
 use std::fs::OpenOptions;
@@ -44,18 +44,14 @@ pub fn init_project(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
             build: "cmake3.28".to_string(),
             edition: "2011".to_string(),
             compiler: "clang".to_string(),
-            compiler_flags: Vec::new(),
-            linker_flags: Vec::new(),
-            main: "src/main.c".to_string(),
-            src: vec!["src".to_string()],
-            include: vec!["include".to_string()],
         },
-        bin: vec![BinVector {
+        unit: vec![UnitVector {
+            kind: "bin".to_string(),
             main: "src/main.c".to_string(),
             src: vec![],
-            include: vec![],
-            compiler_flags: Vec::new(),
-            linker_flags: Vec::new(),
+            include: Some(vec![]),
+            compiler_flags: None,
+            linker_flags: None,
         }],
     };
 
