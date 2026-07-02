@@ -36,7 +36,10 @@ pub fn init_project(
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(dir)?;
 
-    let project_name = dir.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    let project_name = dir
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("project");
     // Rewrite the Salt.toml and Salt.lock files with Serde
     let toml_content = SaltToml {
         package: PackageSection {
