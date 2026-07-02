@@ -56,7 +56,7 @@ pub fn init_project(
         unit: vec![UnitVector {
             kind: "bin".to_string(),
             main: "src/main.c".to_string(),
-            src: vec![],
+            src: vec!["src/".to_string()],
             include: Some(vec![]),
             compiler_flags: None,
             linker_flags: None,
