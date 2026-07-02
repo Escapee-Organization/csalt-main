@@ -5,11 +5,9 @@
 use crate::cli::CompileArgs;
 #[cfg(feature = "experimental")]
 use crate::config::{FileState, SaltLock, SaltToml};
-use clap::{ArgAction, Parser};
 #[cfg(feature = "experimental")]
 use sha2::{Digest, Sha256};
 use std::fs;
-use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 #[cfg(feature = "experimental")]
