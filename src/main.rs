@@ -6,7 +6,7 @@
 use clap::Parser;
 #[cfg(feature = "experimental")]
 use csalt::update_csalt;
-use csalt::{Args, Commands, build_manual_project};
+use csalt::{Args, Commands, NewArgs, build_manual_project};
 pub mod config;
 pub mod fs_utils;
 
@@ -20,18 +20,21 @@ fn main() {
 
     match &args.command {
         Commands::Init { dir } => {
-            if let Err(e) = fs_utils::init_project(dir) {
+            if let Err(e) = fs_utils::init_project(dir, false, false) {
                 eprintln!("[ERROR]\n{}", e);
                 std::process::exit(1);
             }
             println!("[info]\nProject directory initialized successfully");
         }
-        Commands::New { name, dir } => {
-            if let Err(e) = fs_utils::new_project(name, &dir) {
+        Commands::New(new_args) => {
+            if let Err(e) = fs_utils::new_project(new_args) {
                 eprintln!("[ERROR]\n{}", e);
                 std::process::exit(1);
             }
-            println!("[info]\nNew project '{}' created successfully", name);
+            println!(
+                "[info]\nNew project '{}' created successfully",
+                new_args.name
+            );
         }
         #[cfg(feature = "experimental")]
         Commands::Update => {

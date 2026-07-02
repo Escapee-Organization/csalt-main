@@ -2,6 +2,7 @@
 // If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org.
 // Copyright (c) 2026 Escapee Organization
 
+use crate::NewArgs;
 use crate::config::{BuildSection, PackageSection, SaltToml, UnitVector};
 use dirs::home_dir;
 use std::fs;
@@ -19,16 +20,20 @@ pub fn ensure_cache_dir() -> Result<PathBuf, Error> {
     Ok(cache_dir)
 }
 
-pub fn new_project(name: &str, dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+pub fn new_project(args: &NewArgs) -> Result<(), Box<dyn std::error::Error>> {
     // Make new directory, move into it, and create all elements
-    let path = Path::new(dir).join(name);
+    let path = Path::new(&args.dir.as_deref().unwrap_or(".")).join(&args.name);
     fs::create_dir_all(&path)?;
-    init_project(&path)?;
+    init_project(&path, args.full, args.stealth)?;
 
     Ok(())
 }
 
-pub fn init_project(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+pub fn init_project(
+    dir: &Path,
+    full: bool,
+    stealth: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(dir)?;
 
     let project_name = dir.file_name().and_then(|n| n.to_str()).unwrap_or("");
@@ -82,8 +87,25 @@ pub fn init_project(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(dir.join("src"))?;
     fs::create_dir_all(dir.join("include"))?;
     fs::create_dir_all(dir.join("build"))?;
-    fs::create_dir_all(dir.join("tests"))?;
     fs::create_dir_all(dir.join(".csalt"))?;
+    if full {
+        fs::create_dir_all(dir.join("tests"))?;
+        fs::create_dir_all(dir.join("vendor"))?;
+        match fs::exists(dir.join("README.md")) {
+            Ok(false) => {
+                let mut read_me = OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(dir.join("README.md"))?;
+                writeln!(
+                    read_me,
+                    "# {}\n",
+                    dir.file_name().and_then(|n| n.to_str()).unwrap_or("")
+                )?;
+            }
+            _ => {}
+        }
+    }
 
     // First check if there are any files within the src directory
     // If empty, write in a hello world with a return 0 and import stdio.h
@@ -110,21 +132,6 @@ pub fn init_project(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    match fs::exists(dir.join("README.md")) {
-        Ok(false) => {
-            let mut read_me = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(dir.join("README.md"))?;
-            writeln!(
-                read_me,
-                "# {}\n",
-                dir.file_name().and_then(|n| n.to_str()).unwrap_or("")
-            )?;
-        }
-        _ => {}
-    }
-
     match fs::exists(dir.join(".gitignore")) {
         Ok(false) => {
             let mut gitignore = OpenOptions::new()
@@ -134,6 +141,10 @@ pub fn init_project(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
             writeln!(gitignore, "build/")?;
             writeln!(gitignore, ".cache/")?;
             writeln!(gitignore, ".csalt/")?;
+            if stealth {
+                writeln!(gitignore, "Salt.toml")?;
+                writeln!(gitignore, "Salt.lock")?;
+            }
         }
         _ => {}
     }

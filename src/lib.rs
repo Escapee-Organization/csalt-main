@@ -36,15 +36,7 @@ pub enum Commands {
 
     /// Create a new project directory
     #[command(name = "new")]
-    New {
-        /// The name of the new project
-        #[arg(required = true)]
-        name: String,
-
-        /// The directory to create the new project in
-        #[arg(default_value = ".")]
-        dir: PathBuf,
-    },
+    New(NewArgs),
 
     /// Experimental: Update the csalt binary to the latest version
     #[cfg(feature = "experimental")]
@@ -59,6 +51,25 @@ pub enum Commands {
     /// Build using a build system
     #[command(name = "build")]
     Build(BuildArgs),
+}
+
+#[derive(Parser, Debug)]
+pub struct NewArgs {
+    /// Project name
+    #[arg(short = 'n', long = "name")]
+    pub name: String,
+
+    /// Project directory
+    #[arg(short = 'd', long = "dir")]
+    pub dir: Option<String>,
+
+    /// Full project initialization, including creating a git repository
+    #[arg(short = 'f', long = "full")]
+    pub full: bool,
+
+    /// Stealth mode, suppresses output messages
+    #[arg(short = 's', long = "stealth")]
+    pub stealth: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -201,7 +212,7 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
     println!("[info]\nCompiling project...");
 
     let base_dir = std::env::current_dir()?;
-    fs_utils::init_project(&base_dir)?;
+    fs_utils::init_project(&base_dir, false, false)?;
     let cache_dir = base_dir.join(".csalt");
     let src_dir = base_dir.join("src");
     // TODO: Consider a more professional output directory
