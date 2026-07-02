@@ -3,6 +3,7 @@
 // Copyright (c) 2026 Escapee Organization
 
 // TODO: Create transpile function
+#[cfg(feature = "experimental")]
 pub fn transpile(str: &str) -> Result<String, Box<dyn std::error::Error>> {
     Ok(str.to_string())
 }

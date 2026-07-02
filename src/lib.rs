@@ -6,12 +6,15 @@ use crate::cli::CompileArgs;
 #[cfg(feature = "experimental")]
 use crate::config::{FileState, SaltLock, SaltToml};
 use clap::{ArgAction, Parser};
+#[cfg(feature = "experimental")]
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
+#[cfg(feature = "experimental")]
 use std::sync::LockResult;
+#[cfg(feature = "experimental")]
 use toml;
 
 pub mod cli;
@@ -50,7 +53,9 @@ impl CompilerBackend {
     }
 }
 
+#[cfg(feature = "experimental")]
 const LOCK_FILE_PATH: &str = "./Salt.lock";
+#[cfg(feature = "experimental")]
 const LOCK_VERSION: &str = "0.1.0";
 
 // TODO: Implement GitHub release tags and actions
@@ -69,6 +74,7 @@ pub fn update_csalt() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[cfg(feature = "experimental")]
 fn compute_hash(file_string: &str) -> String {
     let hash_bytes = Sha256::digest(file_string.as_bytes());
     hash_bytes
@@ -77,6 +83,7 @@ fn compute_hash(file_string: &str) -> String {
         .collect::<String>()
 }
 
+#[cfg(feature = "experimental")]
 fn load_or_init_lock(current_toml: &SaltToml) -> Result<SaltLock, Box<dyn std::error::Error>> {
     let lock_path = Path::new(LOCK_FILE_PATH);
     if lock_path.exists() {
@@ -99,6 +106,7 @@ fn load_or_init_lock(current_toml: &SaltToml) -> Result<SaltLock, Box<dyn std::e
     })
 }
 
+#[cfg(feature = "experimental")]
 pub fn sync_workspace(
     current_toml: &SaltToml,
     detected_source_files: Vec<String>,
