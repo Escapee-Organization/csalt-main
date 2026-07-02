@@ -4,11 +4,10 @@
 
 #![deny(warnings)]
 use clap::Parser;
+use csalt::cli::{Args, Commands};
 #[cfg(feature = "experimental")]
 use csalt::update_csalt;
-use csalt::{Args, Commands, NewArgs, build_manual_project};
-pub mod config;
-pub mod fs_utils;
+use csalt::{build_manual_project, fs_utils};
 
 fn main() {
     if let Err(e) = fs_utils::ensure_cache_dir() {
