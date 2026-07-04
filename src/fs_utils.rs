@@ -20,6 +20,13 @@ pub fn ensure_cache_dir() -> Result<PathBuf, Error> {
     Ok(cache_dir)
 }
 
+pub fn verify_workspace(base_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let manifest_path = base_dir.join("Salt.toml");
+    if !manifest_path.exists() {
+        return Err("Fatal: Not a valid C-Salt project workspace (missing Salt.toml)".into());
+    }
+    Ok(())
+}
 pub fn new_project(args: &NewArgs) -> Result<(), Box<dyn std::error::Error>> {
     // Make new directory, move into it, and create all elements
     let path = Path::new(&args.dir.as_deref().unwrap_or(".")).join(&args.name);

@@ -134,7 +134,7 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
     println!("[info]\nCompiling project...");
 
     let base_dir = std::env::current_dir()?;
-    fs_utils::init_project(&base_dir, false, false)?;
+    fs_utils::verify_workspace(&base_dir)?;
     let cache_dir = base_dir.join(".csalt");
     let src_dir = base_dir.join("src");
     // TODO: Consider a more professional output directory
