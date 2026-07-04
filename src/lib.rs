@@ -142,21 +142,6 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
     fs::create_dir_all(&out_bin_dir)?;
 
     // FIXME: Copy all files in the main directory EXCEPT .csalt/, Salt.toml, and Salt.lock to .csalt/
-    for entry in fs::read_dir(&base_dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        // Match against path name to see if we should copy it
-        match path.file_name().and_then(|n| n.to_str()) {
-            Some(".csalt") => {}
-            Some("Salt.toml") => {}
-            Some("Salt.lock") => {}
-            Some(file_name) => {
-                let dest_path = cache_dir.join(file_name);
-                fs::copy(&path, &dest_path)?;
-            }
-            None => {}
-        }
-    }
 
     let mut files_to_compile: Vec<PathBuf> = Vec::new();
     if src_dir.exists() && src_dir.is_dir() {
