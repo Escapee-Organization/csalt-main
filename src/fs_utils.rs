@@ -195,7 +195,6 @@ pub fn init_project(
                 .create_new(true)
                 .open(dir.join(".gitignore"))?;
             writeln!(gitignore, "build/")?;
-            writeln!(gitignore, ".cache/")?;
             writeln!(gitignore, ".csalt/")?;
             if stealth {
                 writeln!(gitignore, "Salt.toml")?;
