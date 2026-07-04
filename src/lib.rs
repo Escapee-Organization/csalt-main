@@ -123,7 +123,7 @@ pub fn sync_workspace(
     Ok(updated_files)
 }
 
-/*  To compile a project manually, we must follow specific steps:
+/*  To compile a project manually (assuming the default mode), we must follow specific steps:
  *  1. Check Salt.lock's cache to see what changed
  *  2. Run the header file engine
  *  3. Transpile the source code
