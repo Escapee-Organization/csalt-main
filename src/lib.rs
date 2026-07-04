@@ -3,13 +3,15 @@
 // Copyright (c) 2026 Escapee Organization
 
 use crate::cli::CompileArgs;
-#[cfg(feature = "experimental")]
-use crate::config::{FileState, SaltLock, SaltToml};
+use crate::config::SaltLock;
+use serde_json;
 #[cfg(feature = "experimental")]
 use sha2::{Digest, Sha256};
 use std::fs;
-use std::path::PathBuf;
+use std::io::{Error, ErrorKind};
+use std::path::{Path, PathBuf};
 use std::process::Command;
+
 #[cfg(feature = "experimental")]
 use std::sync::LockResult;
 #[cfg(feature = "experimental")]
@@ -141,6 +143,8 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
     let out_bin_dir = base_dir.join("build").join("bin");
     fs::create_dir_all(&out_bin_dir)?;
 
+    let lock_file = Path::new(LOCK_FILE_PATH);
+
     fs_utils::copy_project_files(&base_dir, &cache_dir)?;
 
     // FIXME: Update file compilation section to use and work with `Salt.lock`.
@@ -166,11 +170,21 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
     // TODO: Transpile the input files
     // transpile::transpile(...)?;
 
-    // Read in the target compiler from the .toml. CLI flag overrides
-    let compiler_backend = if let Some(backend) = &args.backend {
+    // Read in the target compiler from `Salt.lock`. CLI flag overrides
+    let compiler_backend: CompilerBackend = if let Some(backend) = &args.backend {
         CompilerBackend::from_string(backend.as_str())?
     } else {
-        CompilerBackend::Clang
+        // Get `Salt.lock`'s manifest's compiler to then call upon
+        if let Ok(lock) = serde_json::from_str::<SaltLock>(fs::read_to_string(&lock_file)?.as_str())
+        {
+            CompilerBackend::from_string(lock.manifest.build.compiler.as_str())?
+        } else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Invalid Salt.lock file format",
+            )
+            .into());
+        }
     };
     let mut target_compiler = compiler_backend.generate_command();
 
