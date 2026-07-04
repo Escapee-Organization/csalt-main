@@ -74,7 +74,6 @@ pub fn copy_project_files(
 }
 
 pub fn new_project(args: &NewArgs) -> Result<(), Box<dyn std::error::Error>> {
-    // Make new directory, move into it, and create all elements
     let path = Path::new(&args.dir.as_deref().unwrap_or(".")).join(&args.name);
     fs::create_dir_all(&path)?;
     init_project(&path, args.full, args.stealth)?;
@@ -93,7 +92,7 @@ pub fn init_project(
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("project");
-    // Rewrite the Salt.toml and Salt.lock files with Serde
+
     let toml_content = SaltToml {
         package: PackageSection {
             name: project_name.to_string(),
@@ -163,8 +162,6 @@ pub fn init_project(
         }
     }
 
-    // First check if there are any files within the src directory
-    // If empty, write in a hello world with a return 0 and import stdio.h
     if fs::read_dir(dir.join("src"))?.next().is_none() {
         match OpenOptions::new()
             .write(true)
