@@ -27,6 +27,52 @@ pub fn verify_workspace(base_dir: &Path) -> Result<(), Box<dyn std::error::Error
     }
     Ok(())
 }
+
+pub fn copy_project_files(
+    base_dir: &Path,
+    cache_dir: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let excluded_dirs = [".csalt", ".git", "build"];
+    let excluded_files = ["Salt.toml", "Salt.lock"];
+
+    let mut stack = vec![base_dir.to_path_buf()];
+
+    while let Some(current_dir) = stack.pop() {
+        for entry in fs::read_dir(&current_dir)? {
+            let entry = entry?;
+
+            let is_dir = entry.file_type()?.is_dir();
+            let file_name = entry.file_name();
+            if let Some(name) = file_name.to_str() {
+                if current_dir == base_dir {
+                    if is_dir && excluded_dirs.contains(&name) {
+                        continue;
+                    }
+
+                    if !is_dir && excluded_files.contains(&name) {
+                        continue;
+                    }
+                }
+            }
+            let path = entry.path();
+            let relative_path = path
+                .as_path()
+                .strip_prefix(&base_dir)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+            let target_path = cache_dir.join(relative_path);
+
+            if is_dir {
+                fs::create_dir_all(&target_path)?;
+                stack.push(path);
+            } else {
+                fs::copy(&path, &target_path)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
 pub fn new_project(args: &NewArgs) -> Result<(), Box<dyn std::error::Error>> {
     // Make new directory, move into it, and create all elements
     let path = Path::new(&args.dir.as_deref().unwrap_or(".")).join(&args.name);

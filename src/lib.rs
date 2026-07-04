@@ -141,7 +141,7 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
     let out_bin_dir = base_dir.join("build").join("bin");
     fs::create_dir_all(&out_bin_dir)?;
 
-    // FIXME: Copy all files in the main directory EXCEPT .csalt/, Salt.toml, and Salt.lock to .csalt/
+    fs_utils::copy_project_files(&base_dir, &cache_dir)?;
 
     let mut files_to_compile: Vec<PathBuf> = Vec::new();
     if src_dir.exists() && src_dir.is_dir() {
