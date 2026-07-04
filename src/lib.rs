@@ -143,6 +143,7 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
 
     fs_utils::copy_project_files(&base_dir, &cache_dir)?;
 
+    // FIXME: Update file compilation section to use and work with `Salt.lock`.
     let mut files_to_compile: Vec<PathBuf> = Vec::new();
     if src_dir.exists() && src_dir.is_dir() {
         for entry in fs::read_dir(src_dir)? {

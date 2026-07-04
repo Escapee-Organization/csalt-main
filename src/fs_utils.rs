@@ -28,6 +28,7 @@ pub fn verify_workspace(base_dir: &Path) -> Result<(), Box<dyn std::error::Error
     Ok(())
 }
 
+// TODO: Consider using `Salt.lock` to exclude unnecessary file copying
 pub fn copy_project_files(
     base_dir: &Path,
     cache_dir: &Path,
