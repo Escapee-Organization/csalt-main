@@ -42,6 +42,16 @@ impl CompilerBackend {
         }
     }
 
+    fn to_string(&self) -> &str {
+        match self {
+            Self::Clang => "clang",
+            Self::Gcc => "gcc",
+            Self::Zig => "zig",
+            Self::Msvc => "cl",
+            Self::ClangCl => "clang-cl",
+        }
+    }
+
     fn generate_command(&self) -> Command {
         match self {
             Self::Clang => Command::new("clang"),
@@ -53,7 +63,27 @@ impl CompilerBackend {
     }
 }
 
-#[cfg(feature = "experimental")]
+fn verify_command(compiler_backend: &CompilerBackend) -> Result<(), Box<dyn std::error::Error>> {
+    match compiler_backend.generate_command().spawn() {
+        Ok(mut child) => {
+            // Kill child
+            let _ = child.kill();
+            Ok(())
+        }
+        Err(e) if e.kind() == ErrorKind::NotFound => {
+            // The binary is definitively missing from the system
+            Err(Box::new(Error::new(
+                ErrorKind::NotFound,
+                format!("Compiler '{}' not found", compiler_backend.to_string()),
+            )))
+        }
+        Err(_) => {
+            // It exists, but we ran into a permission/OS blockade (which counts as existing!)
+            Ok(())
+        }
+    }
+}
+
 const LOCK_FILE_PATH: &str = "./Salt.lock";
 #[cfg(feature = "experimental")]
 const LOCK_VERSION: &str = "0.1.0";
@@ -186,6 +216,7 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
             .into());
         }
     };
+    verify_command(&compiler_backend)?;
     let mut target_compiler = compiler_backend.generate_command();
 
     // If the user provided no flags, we are just going to compile the files as-is.
