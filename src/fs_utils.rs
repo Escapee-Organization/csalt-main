@@ -4,11 +4,13 @@
 
 use crate::cli::NewArgs;
 use crate::config::{BuildSection, PackageSection, SaltToml, UnitVector};
+use crate::verify_command;
 use dirs::home_dir;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::{Error, ErrorKind, Write};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 pub fn ensure_cache_dir() -> Result<PathBuf, Error> {
     let home = home_dir().ok_or(Error::new(
@@ -77,7 +79,7 @@ pub fn copy_project_files(
 pub fn new_project(args: &NewArgs) -> Result<(), Box<dyn std::error::Error>> {
     let path = Path::new(&args.dir.as_deref().unwrap_or(".")).join(&args.name);
     fs::create_dir_all(&path)?;
-    init_project(&path, args.full, args.stealth)?;
+    init_project(&path, args.full, args.stealth, args.init_git)?;
 
     Ok(())
 }
@@ -86,6 +88,7 @@ pub fn init_project(
     dir: &Path,
     full: bool,
     stealth: bool,
+    init_git: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(dir)?;
 
@@ -201,6 +204,15 @@ pub fn init_project(
             }
         }
         _ => {}
+    }
+
+    if init_git {
+        verify_command("git")?;
+        Command::new("git")
+            .current_dir(&dir)
+            .args(["init", "--initial-branch=main"])
+            .status()
+            .ok();
     }
 
     Ok(())

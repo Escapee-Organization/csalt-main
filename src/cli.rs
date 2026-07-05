@@ -58,6 +58,10 @@ pub struct NewArgs {
     /// Stealth mode, suppresses output messages
     #[arg(long = "stealth")]
     pub stealth: bool,
+
+    /// Initializes git after creation
+    #[arg(long = "git", short = 'g')]
+    pub init_git: bool,
 }
 
 #[derive(Parser, Debug)]

@@ -19,7 +19,7 @@ fn main() {
 
     match &args.command {
         Commands::Init { dir } => {
-            if let Err(e) = fs_utils::init_project(dir, false, false) {
+            if let Err(e) = fs_utils::init_project(dir, false, false, false) {
                 eprintln!("[ERROR]\n{}", e);
                 std::process::exit(1);
             }
