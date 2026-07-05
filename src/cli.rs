@@ -56,7 +56,7 @@ pub struct NewArgs {
     pub full: bool,
 
     /// Stealth mode, suppresses output messages
-    #[arg(short = 's', long = "stealth")]
+    #[arg(long = "stealth")]
     pub stealth: bool,
 }
 
