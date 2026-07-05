@@ -23,10 +23,13 @@ pub struct BuildSection {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct UnitVector {
-    pub kind: String,
+    pub kind: String, // Can be either "lib", "dyn", or "bin"
     pub main: String,
+
+    // Make sure it accepts non-recursive directories AND single files
     pub src: Vec<String>,
     pub include: Option<Vec<String>>,
+    // TODO: Research flags for include directories (include), library search paths, and library files for dynamic translation later.
     pub compiler_flags: Option<Vec<String>>,
     pub linker_flags: Option<Vec<String>>,
 }
@@ -39,6 +42,10 @@ pub struct SaltToml {
 }
 
 // TODO: Validate everything
+/*
+ * We must ensure that lib and dyn are before bin in the unit vector
+ * Also ensure any include sources are valid.
+ */
 impl SaltToml {
     pub fn validate(&self) -> Result<(), String> {
         // 1. Ensure the package name isn't blank
