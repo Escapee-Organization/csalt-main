@@ -63,18 +63,19 @@ impl CompilerBackend {
     }
 }
 
-fn verify_command(compiler_backend: &CompilerBackend) -> Result<(), Box<dyn std::error::Error>> {
-    match compiler_backend.generate_command().spawn() {
+fn verify_command(command_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+    match Command::new(command_name).spawn() {
         Ok(mut child) => {
-            // Kill child
+            // Kill the child! Kill the child!
             let _ = child.kill();
+            let _ = child.wait();
             Ok(())
         }
         Err(e) if e.kind() == ErrorKind::NotFound => {
             // The binary is definitively missing from the system
             Err(Box::new(Error::new(
                 ErrorKind::NotFound,
-                format!("Compiler '{}' not found", compiler_backend.to_string()),
+                format!("Compiler '{}' not found", command_name),
             )))
         }
         Err(_) => {
@@ -216,7 +217,7 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
             .into());
         }
     };
-    verify_command(&compiler_backend)?;
+    verify_command(&compiler_backend.to_string())?;
     let mut target_compiler = compiler_backend.generate_command();
 
     // If the user provided no flags, we are just going to compile the files as-is.
