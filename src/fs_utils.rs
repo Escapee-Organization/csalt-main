@@ -102,7 +102,8 @@ pub fn init_project(
             description: "".to_string(),
         },
         build: BuildSection {
-            build: "cmake3.28".to_string(),
+            build_system: "cmake3.15".to_string(),
+            build_dir: "build".to_string(),
             edition: "2011".to_string(),
             compiler: "clang".to_string(),
         },

@@ -15,7 +15,8 @@ pub struct PackageSection {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BuildSection {
-    pub build: String,
+    pub build_system: String,
+    pub build_dir: String,
     pub edition: String,
     pub compiler: String,
 }
