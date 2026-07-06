@@ -85,7 +85,7 @@ fn verify_command(command_name: &str) -> Result<(), Box<dyn std::error::Error>> 
     }
 }
 
-const LOCK_FILE_PATH: &str = "./Salt.lock";
+const LOCK_FILE_PATH: &str = "Salt.lock";
 #[cfg(feature = "experimental")]
 const LOCK_VERSION: &str = "0.1.0";
 
@@ -174,7 +174,7 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
     let out_bin_dir = base_dir.join("build").join("bin");
     fs::create_dir_all(&out_bin_dir)?;
 
-    let lock_file = Path::new(LOCK_FILE_PATH);
+    let lock_file = base_dir.join(LOCK_FILE_PATH);
 
     fs_utils::copy_project_files(&base_dir, &cache_dir)?;
 
