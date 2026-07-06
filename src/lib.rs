@@ -9,7 +9,7 @@ use serde_json;
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::{Error, ErrorKind};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Command;
 
 #[cfg(feature = "experimental")]
