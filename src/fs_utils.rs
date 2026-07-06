@@ -31,7 +31,7 @@ pub fn verify_workspace(base_dir: &Path) -> Result<(), Box<dyn std::error::Error
 }
 
 // TODO: Consider using `Salt.lock` to exclude unnecessary file copying
-pub fn copy_project_files(
+pub fn mirror_project_files(
     base_dir: &Path,
     cache_dir: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -64,16 +64,47 @@ pub fn copy_project_files(
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
             let target_path = cache_dir.join(relative_path);
 
+            if let Ok(metadata) = target_path.symlink_metadata() {
+                if metadata.is_dir() && !metadata.is_symlink() {
+                    let _ = fs::remove_dir_all(&target_path);
+                } else {
+                    let _ = fs::remove_file(&target_path);
+                }
+            }
+
             if is_dir {
                 fs::create_dir_all(&target_path)?;
                 stack.push(path);
             } else {
-                fs::copy(&path, &target_path)?;
+                if let Some(parent) = target_path.parent() {
+                    fs::create_dir_all(parent)?;
+                }
+
+                let absolute_source = base_dir.join(relative_path);
+
+                if let Err(e) = create_file_symlink(&absolute_source, &target_path) {
+                    #[cfg(windows)]
+                    if e.kind() == std::io::ErrorKind::InvalidData {
+                        eprintln!("[ERROR]\nC-Salt requires 'developer mode' to run on Windows.")
+                    }
+                    return Err(e.into());
+                }
             }
         }
     }
 
     Ok(())
+}
+
+fn create_file_symlink(src: &Path, dst: &Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(src, dst)
+    }
+    #[cfg(windows)]
+    {
+        std::os::windows::fs::symlink_file(src, dst)
+    }
 }
 
 pub fn new_project(args: &NewArgs) -> Result<(), Box<dyn std::error::Error>> {

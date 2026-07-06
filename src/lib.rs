@@ -176,7 +176,7 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
 
     let lock_file = base_dir.join(LOCK_FILE_PATH);
 
-    fs_utils::copy_project_files(&base_dir, &cache_dir)?;
+    fs_utils::mirror_project_files(&base_dir, &cache_dir)?;
 
     // FIXME: Update file compilation section to use and work with `Salt.lock`.
     let mut files_to_compile: Vec<PathBuf> = Vec::new();
