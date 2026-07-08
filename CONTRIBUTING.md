@@ -19,9 +19,14 @@ On all issues, if you are willing to contribute, drop a comment letting us know 
 - Open a new issue using our bug template.
 - Include clear steps to reproduce the bug and your environment details.
 
-### Suggesting Enhancements
+### Requesting Features
 - Open an issue describing the feature you want.
 - Explain why this feature would be useful to most users.
+
+### Moving Codebase Issues
+- Find a comment within the codebase which begins with either `NOTE:`, `TODO:`, or `FIXME:`.
+- Check the Issues tab to see if the issue has already been moved.
+- If the issue has not been moved, create a new issue using our bug, feature request, or todo template.
 
 ### Submitting Code (Pull Requests)
 1. Fork the repository and clone it locally.
@@ -35,10 +40,10 @@ On all issues, if you are willing to contribute, drop a comment letting us know 
 6. Push to your fork and submit a Pull Request (PR) against our `main` branch.
 
 ## Development Standards
-- **Git Commits**: Write commit messages in the imperative mood and use [**conventional commits**](https://www.conventionalcommits.org/en/v1.0.0/#summary) (e.g., "Fix: fix bug in navbar" instead of "Fixed bug").
+- **Git Commits**: Write commit messages in the imperative mood and use [**conventional commits**](https://www.conventionalcommits.org/en/v1.0.0/#summary) (e.g., "fix: resolve bug in `copy_project_files()`" instead of "Fixed bug").
 - **Code Style**: We follow standard formatting tools. Run `cargo fmt` before committing.
 - **Code Quality**: Write code which will be maintainable in the future. It's good practice to run `cargo clippy` and listen to those suggestions.
-- **AI Usage, etc.**: Be transparent about the way you're contributing to C-Salt. It will be used to correctly assess potential issues or misunderstandings within your contribution, and applies to the Escapee Foundation as well.
+- **AI Usage, etc.**: Be transparent about the way you're contributing to C-Salt. It will be used to correctly assess potential issues or misunderstandings within your contribution, and is something the Escapee Foundation will adhere to internally as well.
 
 ## Where to Start
 If you are unsure of where to start contributing, here are some things to check:
