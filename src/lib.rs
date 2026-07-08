@@ -3,14 +3,14 @@
 // Copyright (c) 2026 Escapee Organization
 
 use crate::cli::CompileArgs;
-use crate::config::{CompilerBackend, SaltLock};
+use crate::config::{CompilerBackend, SaltLock, SaltToml, UnitKinds};
 use serde_json;
-#[cfg(feature = "experimental")]
 use sha2::{Digest, Sha256};
-use std::fs;
+use std::collections::HashMap;
 use std::io::{Error, ErrorKind};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::{collections, fs};
 
 #[cfg(feature = "experimental")]
 use std::sync::LockResult;
@@ -21,6 +21,18 @@ pub mod cli;
 pub mod config;
 pub mod fs_utils;
 pub mod transpile;
+
+// ----------------- DATA STRUCTURES -----------------
+
+pub struct PreparedUnit {
+    pub name: String,
+    pub kind: UnitKinds,
+    pub src: Vec<PathBuf>,
+    pub include: Option<Vec<PathBuf>>,
+    pub resolved_deps: Vec<(String, UnitKinds)>,
+}
+
+// -------------------- FUNCTIONS --------------------
 
 fn verify_command(command_name: &str) -> Result<(), Box<dyn std::error::Error>> {
     match Command::new(command_name).spawn() {
@@ -45,7 +57,6 @@ fn verify_command(command_name: &str) -> Result<(), Box<dyn std::error::Error>> 
 }
 
 const LOCK_FILE_PATH: &str = "Salt.lock";
-#[cfg(feature = "experimental")]
 const LOCK_VERSION: &str = "0.1.0";
 
 // TODO: Implement GitHub release tags and actions
@@ -64,7 +75,6 @@ pub fn update_csalt() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[cfg(feature = "experimental")]
 fn compute_hash(file_string: &str) -> String {
     let hash_bytes = Sha256::digest(file_string.as_bytes());
     hash_bytes
@@ -73,14 +83,15 @@ fn compute_hash(file_string: &str) -> String {
         .collect::<String>()
 }
 
-#[cfg(feature = "experimental")]
 fn load_or_init_lock(current_toml: &SaltToml) -> Result<SaltLock, Box<dyn std::error::Error>> {
     let lock_path = Path::new(LOCK_FILE_PATH);
     if lock_path.exists() {
         if let Ok(contents) = fs::read_to_string(lock_path) {
-            if let Ok(lock) = serde_json::from_str::<SaltLock>(&contents) {
-                if lock.manifest == *current_toml {
-                    return Ok(lock);
+            if !contents.trim().is_empty() {
+                if let Ok(lock) = serde_json::from_str::<SaltLock>(&contents) {
+                    if lock.manifest == *current_toml {
+                        return Ok(lock);
+                    }
                 }
             }
         }
@@ -95,11 +106,10 @@ fn load_or_init_lock(current_toml: &SaltToml) -> Result<SaltLock, Box<dyn std::e
 
 #[cfg(feature = "experimental")]
 pub fn sync_workspace(
-    current_toml: &SaltToml,
-    detected_source_files: Vec<String>,
-) -> Result<std::collections::BTreeMap<String, FileState>, Box<dyn std::error::Error>> {
-    let mut lock = load_or_init_lock(current_toml)?;
-    let mut updated_files = std::collections::BTreeMap::new();
+    current_toml: &mut SaltToml,
+    base_dir: &Path,
+) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
+    let mut proposed_files_cache = std::collections::BTreeMap::new();
     let cache_dir = Path::new(".csalt");
 
     for file_paths in detected_source_files {
@@ -110,6 +120,103 @@ pub fn sync_workspace(
     }
 
     Ok(updated_files)
+}
+
+pub fn prepare_build_plan(
+    lock: &SaltLock,
+    base_dir: &Path,
+) -> Result<Vec<PreparedUnit>, Box<dyn std::error::Error>> {
+    let mut plan = Vec::new();
+
+    let mut known_units: HashMap<String, UnitKinds> = collections::HashMap::new();
+    for unit in &lock.manifest.unit {
+        known_units.insert(unit.name.clone(), unit.kind.clone());
+    }
+
+    for unit in &lock.manifest.unit {
+        let mut gathered_src_files = Vec::new();
+
+        for src_path in &unit.src {
+            let target = if src_path.is_absolute() {
+                src_path.clone()
+            } else {
+                base_dir.join(src_path)
+            };
+
+            if target.exists() {
+                if target.is_file() {
+                    gathered_src_files.push(target);
+                } else if target.is_dir() {
+                    for entry in fs::read_dir(target)? {
+                        let path = entry?.path();
+                        if path.is_file() && path.extension().map_or(false, |ext| ext == "c") {
+                            gathered_src_files.push(path);
+                        }
+                    }
+                }
+            } else {
+                return Err(
+                    format!("File not found for sources: {}", target.to_string_lossy()).into(),
+                );
+            }
+        }
+
+        // TODO: Refactor directory scanning into a shared path resolution engine to remove duplicate code blocks. FORGIVE ME.
+
+        let mut gathered_include_files = Vec::new();
+
+        if let Some(include) = &unit.include {
+            for include_path in include {
+                let target = if include_path.is_absolute() {
+                    include_path.clone()
+                } else {
+                    base_dir.join(include_path)
+                };
+
+                if target.exists() {
+                    if target.is_file() {
+                        gathered_include_files.push(target);
+                    } else if target.is_dir() {
+                        for entry in fs::read_dir(target)? {
+                            let path = entry?.path();
+                            if path.is_file() && path.extension().map_or(false, |ext| ext == "c") {
+                                gathered_include_files.push(path);
+                            }
+                        }
+                    }
+                } else {
+                    return Err(format!(
+                        "File not found for include: {}",
+                        target.to_string_lossy()
+                    )
+                    .into());
+                }
+            }
+        }
+
+        let mut resolved_dependencies = Vec::new();
+        if let Some(deps) = &unit.deps {
+            for dep in deps {
+                if let Some(kind) = known_units.get(dep) {
+                    resolved_dependencies.push((dep.clone(), kind.clone()));
+                }
+            }
+        }
+
+        plan.push(PreparedUnit {
+            name: unit.name.clone(),
+            kind: unit.kind.clone(),
+            src: gathered_src_files,
+            include: if gathered_include_files.is_empty() {
+                None
+            } else {
+                Some(gathered_include_files)
+            },
+            resolved_deps: resolved_dependencies,
+        });
+    }
+
+    Ok(plan)
 }
 
 /*  To compile a project manually (assuming the default mode), we must follow specific steps:
@@ -130,7 +237,9 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
     let out_bin_dir = base_dir.join("build").join("bin");
     fs::create_dir_all(&out_bin_dir)?;
 
-    let lock_file = base_dir.join(LOCK_FILE_PATH);
+    let salt_toml = fs::read_to_string(base_dir.join("Salt.toml"))?;
+    let current_toml: SaltToml = toml::from_str(&salt_toml)?;
+    let lock_file = base_dir.join("Salt.lock");
 
     fs_utils::copy_project_files(&base_dir, &cache_dir)?;
 
