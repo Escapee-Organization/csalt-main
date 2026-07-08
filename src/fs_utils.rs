@@ -38,7 +38,7 @@ pub fn copy_project_files(
     cache_dir: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let excluded_dirs = [".csalt", ".git", "build"];
-    let excluded_files = ["Salt.toml", "Salt.lock"];
+    let excluded_files = ["Salt.toml", "Salt.lock", ".gitignore"];
 
     let mut stack = vec![base_dir.to_path_buf()];
 
