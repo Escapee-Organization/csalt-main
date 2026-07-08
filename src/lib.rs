@@ -86,11 +86,8 @@ fn load_or_init_lock(current_toml: &SaltToml) -> Result<SaltLock, Box<dyn std::e
         }
     }
 
-    let manifest_hash = compute_hash(&toml::to_string_pretty(current_toml)?.as_str());
-
     Ok(SaltLock {
         lock_version: LOCK_VERSION.to_string(),
-        manifest_hash,
         manifest: current_toml.clone(),
         files: std::collections::BTreeMap::new(),
     })

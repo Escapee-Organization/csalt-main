@@ -192,7 +192,6 @@ pub struct FileState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SaltLock {
     pub lock_version: String,
-    pub manifest_hash: String,
     pub manifest: SaltToml,
     pub files: collections::BTreeMap<String, FileState>,
 }
