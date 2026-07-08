@@ -3,7 +3,9 @@
 // Copyright (c) 2026 Escapee Organization
 
 use crate::cli::NewArgs;
-use crate::config::{BuildSection, PackageSection, SaltToml, UnitVector};
+use crate::config::{
+    BuildSection, BuildSystems, CompilerBackend, PackageSection, SaltToml, UnitKinds, UnitVector,
+};
 use crate::verify_command;
 use dirs::home_dir;
 use std::fs;
@@ -105,16 +107,18 @@ pub fn init_project(
             description: "".to_string(),
         },
         build: BuildSection {
-            build_system: "cmake3.15".to_string(),
-            build_dir: "build".to_string(),
+            build_system: BuildSystems::CMake3_15,
+            build_dir: Some(PathBuf::from("build").canonicalize()?),
             edition: "2011".to_string(),
-            compiler: "clang".to_string(),
+            compiler: CompilerBackend::Clang,
         },
         unit: vec![UnitVector {
-            kind: "bin".to_string(),
-            main: "src/main.c".to_string(),
-            src: vec!["src/".to_string()],
-            include: Some(vec![]),
+            name: project_name.to_string(),
+            kind: UnitKinds::Bin,
+            main: PathBuf::from("src/main.c").canonicalize()?,
+            src: vec![PathBuf::from("src/").canonicalize()?],
+            include: Some(vec![PathBuf::from("include/").canonicalize()?]),
+            deps: None,
             compiler_flags: None,
             linker_flags: None,
         }],

@@ -3,7 +3,7 @@
 // Copyright (c) 2026 Escapee Organization
 
 use crate::cli::CompileArgs;
-use crate::config::SaltLock;
+use crate::config::{CompilerBackend, SaltLock};
 use serde_json;
 #[cfg(feature = "experimental")]
 use sha2::{Digest, Sha256};
@@ -21,47 +21,6 @@ pub mod cli;
 pub mod config;
 pub mod fs_utils;
 pub mod transpile;
-
-enum CompilerBackend {
-    Clang,
-    Gcc,
-    Zig,
-    Msvc,
-    ClangCl,
-}
-
-impl CompilerBackend {
-    fn from_string(s: &str) -> Result<Self, &'static str> {
-        match s {
-            "clang" => Ok(Self::Clang),
-            "gcc" => Ok(Self::Gcc),
-            "zig" => Ok(Self::Zig),
-            "msvc" => Ok(Self::Msvc),
-            "clang-cl" => Ok(Self::ClangCl),
-            _ => Err("unknown backend"),
-        }
-    }
-
-    fn to_string(&self) -> &str {
-        match self {
-            Self::Clang => "clang",
-            Self::Gcc => "gcc",
-            Self::Zig => "zig",
-            Self::Msvc => "cl",
-            Self::ClangCl => "clang-cl",
-        }
-    }
-
-    fn generate_command(&self) -> Command {
-        match self {
-            Self::Clang => Command::new("clang"),
-            Self::Gcc => Command::new("gcc"),
-            Self::Zig => Command::new("zig"),
-            Self::Msvc => Command::new("cl"),
-            Self::ClangCl => Command::new("clang-cl"),
-        }
-    }
-}
 
 fn verify_command(command_name: &str) -> Result<(), Box<dyn std::error::Error>> {
     match Command::new(command_name).spawn() {
@@ -208,7 +167,7 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
         // Get `Salt.lock`'s manifest's compiler to then call upon
         if let Ok(lock) = serde_json::from_str::<SaltLock>(fs::read_to_string(&lock_file)?.as_str())
         {
-            CompilerBackend::from_string(lock.manifest.build.compiler.as_str())?
+            lock.manifest.build.compiler
         } else {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
