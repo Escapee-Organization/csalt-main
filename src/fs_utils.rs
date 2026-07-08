@@ -134,17 +134,19 @@ pub fn init_project(
         println!("Salt.toml already exists, skipping creation.");
     }
 
-    match OpenOptions::new()
-        .write(true)
-        .create(true)
-        .open(dir.join("Salt.lock"))
-    {
-        Ok(mut lock_file) => writeln!(lock_file, "")?,
-        Err(e) if e.kind() == ErrorKind::AlreadyExists => {
-            println!("Salt.lock already exists: {}", e);
-        }
-        Err(e) => {
-            return Err(Box::new(e));
+    if !dir.join("Salt.lock").exists() {
+        match OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(dir.join("Salt.lock"))
+        {
+            Ok(mut lock_file) => writeln!(lock_file, "")?,
+            Err(e) if e.kind() == ErrorKind::AlreadyExists => {
+                println!("Salt.lock already exists: {}", e);
+            }
+            Err(e) => {
+                return Err(Box::new(e));
+            }
         }
     }
 
