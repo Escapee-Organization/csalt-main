@@ -125,6 +125,10 @@ impl SaltToml {
             return Err("Package name cannot be empty in Salt.toml".into());
         }
 
+        if self.unit.is_empty() {
+            return Err("At least one unit must be defined in Salt.toml".into());
+        }
+
         // 2. Verify target definitions aren't broken and are in the correct order
         /*
          * We must ensure that lib and dyn are before bin in the unit vector
@@ -148,6 +152,12 @@ impl SaltToml {
                 return Err(format!(
                     "The main target '{}' must be a valid C source file (.c or .csal)",
                     target.main.to_string_lossy()
+                ));
+            }
+            if target.src.is_empty() {
+                return Err(format!(
+                    "Unit '{}' must specify at least one source file or directory",
+                    target.name
                 ));
             }
 
