@@ -232,107 +232,180 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
     let base_dir = std::env::current_dir()?;
     fs_utils::verify_workspace(&base_dir)?;
     let cache_dir = base_dir.join(".csalt");
-    let src_dir = base_dir.join("src");
     // TODO: Consider a more professional output directory
     let out_bin_dir = base_dir.join("build").join("bin");
     fs::create_dir_all(&out_bin_dir)?;
 
-    let salt_toml = fs::read_to_string(base_dir.join("Salt.toml"))?;
-    let current_toml: SaltToml = toml::from_str(&salt_toml)?;
-    let lock_file = base_dir.join("Salt.lock");
+    let salt_toml_str = fs::read_to_string(base_dir.join("Salt.toml"))?;
+    let current_toml: SaltToml = toml::from_str(&salt_toml_str)?;
+
+    let lock = load_or_init_lock(&current_toml)?;
 
     fs_utils::copy_project_files(&base_dir, &cache_dir)?;
-
-    // FIXME: Update file compilation section to use and work with `Salt.lock`.
-    let mut files_to_compile: Vec<PathBuf> = Vec::new();
-    if src_dir.exists() && src_dir.is_dir() {
-        for entry in fs::read_dir(src_dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            // Only capture files that end with the .c extension for now
-            if path.is_file() && path.extension().map_or(false, |ext| ext == "c") {
-                files_to_compile.push(path);
-            }
-        }
-    }
-
-    if files_to_compile.is_empty() {
-        return Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "No files to compile",
-        )));
-    }
-
-    // TODO: Transpile the input files
-    // transpile::transpile(...)?;
 
     // Read in the target compiler from `Salt.lock`. CLI flag overrides
     let compiler_backend: CompilerBackend = if let Some(backend) = &args.backend {
         CompilerBackend::from_string(backend.as_str())?
     } else {
-        // Get `Salt.lock`'s manifest's compiler to then call upon
-        if let Ok(lock) = serde_json::from_str::<SaltLock>(fs::read_to_string(&lock_file)?.as_str())
-        {
-            lock.manifest.build.compiler
-        } else {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "Invalid Salt.lock file format",
-            )
-            .into());
-        }
+        lock.manifest.build.compiler.clone()
     };
     verify_command(&compiler_backend.to_string())?;
-    let mut target_compiler = compiler_backend.generate_command();
 
-    // If the user provided no flags, we are just going to compile the files as-is.
-    // Otherwise, the user provided flags will be passed through to the target compiler
-    if args.backend_flags.is_empty() {
-        let output_executable = out_bin_dir.join(
-            base_dir
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("a.out"),
+    let build_plan = prepare_build_plan(&lock, &base_dir)?;
+
+    for unit in build_plan {
+        println!(
+            "[info] Processing target unit: {} ({:?})",
+            unit.name, unit.kind
         );
+
+        let mut target_compiler = compiler_backend.generate_command();
+        let output_executable = if cfg!(target_os = "windows") {
+            out_bin_dir.join(&unit.name).with_extension("exe")
+        } else {
+            out_bin_dir.join(&unit.name)
+        };
+
         match compiler_backend {
-            CompilerBackend::Clang | CompilerBackend::Gcc => {
-                target_compiler.arg("-o");
-                target_compiler.arg(&output_executable);
-                for file in &files_to_compile {
-                    target_compiler.arg(file.to_str().unwrap());
+            CompilerBackend::Gcc | CompilerBackend::Clang | CompilerBackend::Zig => {
+                if compiler_backend == CompilerBackend::Zig {
+                    target_compiler.arg("cc");
+                }
+
+                match unit.kind {
+                    UnitKinds::Bin => {
+                        target_compiler.arg("-o").arg(&output_executable);
+                    }
+                    UnitKinds::Dyn => {
+                        let dyn_ext = if cfg!(target_os = "windows") {
+                            "dll"
+                        } else if cfg!(target_os = "macos") {
+                            "dylib"
+                        } else {
+                            "so"
+                        };
+                        let out_dyn = cache_dir.join(format!("lib{}.{}", unit.name, dyn_ext));
+                        target_compiler
+                            .arg("-shared")
+                            .arg("-fPIC")
+                            .arg("-o")
+                            .arg(out_dyn);
+                    }
+                    UnitKinds::Lib => {
+                        // Static libraries are archives of individual object (.o) files
+                        // We instruct GCC to compile source targets to relocatable objects first (-c)
+                        target_compiler.arg("-c");
+                    }
                 }
             }
-            CompilerBackend::Zig => {
-                target_compiler.arg("cc");
-                target_compiler.arg("-o");
-                target_compiler.arg(&output_executable);
-                for file in &files_to_compile {
-                    target_compiler.arg(file.to_str().unwrap());
+            CompilerBackend::Msvc | CompilerBackend::ClangCl => match unit.kind {
+                UnitKinds::Bin => {
+                    target_compiler.arg(format!("/Fe:{}", output_executable.to_str().unwrap()));
                 }
-            }
-            CompilerBackend::ClangCl | CompilerBackend::Msvc => {
-                target_compiler.arg(format!("/Fe:{}", output_executable.to_str().unwrap()));
-                for file in &files_to_compile {
-                    target_compiler.arg(file.to_str().unwrap());
+                UnitKinds::Dyn => {
+                    let out_dyn = cache_dir.join(format!("{}.dll", unit.name));
+                    target_compiler
+                        .arg("/LD")
+                        .arg(format!("/Fe:{}", out_dyn.to_str().unwrap()));
+                }
+                UnitKinds::Lib => {
+                    target_compiler.arg("/c");
+                }
+            },
+        }
+
+        for src_file in &unit.src {
+            let relative_src = src_file.strip_prefix(&base_dir)?;
+            target_compiler.arg(relative_src);
+        }
+        if let Some(include_paths) = &unit.include {
+            for include_path in include_paths {
+                let relative_inc = include_path.strip_prefix(&base_dir)?;
+                match compiler_backend {
+                    CompilerBackend::Msvc | CompilerBackend::ClangCl => {
+                        target_compiler.arg(format!("/I{}", relative_inc.to_str().unwrap()));
+                    }
+                    _ => {
+                        target_compiler.arg("-I").arg(relative_inc);
+                    }
                 }
             }
         }
 
-        let status = target_compiler.current_dir(cache_dir).status()?;
-        if !status.success() {
-            return Err("Failed to compile".into());
-        }
-    } else {
-        // NOTE: We pass the flags directly to the target compiler as-is, without any processing of our own
-        for flag in &args.backend_flags {
-            target_compiler.arg(flag);
+        for (dep_name, _dep_kind) in &unit.resolved_deps {
+            // Tell the compiler to look right inside our current scratchpad dir for dependencies
+            match compiler_backend {
+                CompilerBackend::Msvc | CompilerBackend::ClangCl => {
+                    target_compiler.arg(format!("{}.lib", dep_name));
+                }
+                _ => {
+                    target_compiler.arg("-L.").arg(format!("-l{}", dep_name));
+                }
+            }
         }
 
-        let status = target_compiler.status()?;
+        let status = target_compiler.current_dir(&cache_dir).status()?;
         if !status.success() {
-            return Err("Failed to compile".into());
+            return Err(format!("Failed to compile unit '{}'", unit.name).into());
+        }
+
+        // If this unit was a Static Library, we must pack the resulting object files into a .a container
+        if unit.kind == UnitKinds::Lib {
+            println!(
+                "[info] Packing static archive for library unit: lib{}.a",
+                unit.name
+            );
+
+            let mut ar_command = match compiler_backend {
+                CompilerBackend::Msvc | CompilerBackend::ClangCl => {
+                    let mut cmd = std::process::Command::new("lib");
+                    cmd.arg(format!(
+                        "/OUT:{}",
+                        cache_dir
+                            .join(format!("{}.lib", unit.name))
+                            .to_str()
+                            .unwrap()
+                    ));
+                    cmd
+                }
+                CompilerBackend::Gcc | CompilerBackend::Zig | CompilerBackend::Clang => {
+                    let mut cmd = std::process::Command::new("ar");
+                    cmd.arg("rcs");
+                    cmd.arg(format!("lib{}.a", unit.name));
+                    cmd
+                }
+            };
+
+            let obj_ext = match compiler_backend {
+                CompilerBackend::Gcc | CompilerBackend::Zig | CompilerBackend::Clang => "o",
+                CompilerBackend::Msvc | CompilerBackend::ClangCl => "obj",
+            };
+
+            // Collect the compiled .o files matching our source targets
+            for src_file in &unit.src {
+                let mut o_file = src_file.clone();
+                o_file.set_extension(obj_ext);
+                let relative_o = o_file.strip_prefix(&base_dir)?;
+                ar_command.arg(relative_o);
+            }
+
+            let ar_status = ar_command.current_dir(&cache_dir).status()?;
+            if !ar_status.success() {
+                return Err(format!(
+                    "Failed to execute static library archiver on unit: {}",
+                    unit.name
+                )
+                .into());
+            }
         }
     }
+
+    // TODO: Transpile the input files, and refactor above loop to use this.
+    // NOTE: .c goes to a check function, .csal goes to a transpile function. The check function should have a bool to turn off features for .c
+    // transpile::transpile(...)?;
+
+    let updated_lock = serde_json::to_string(&lock)?;
+    fs::write(base_dir.join("Salt.lock"), updated_lock)?;
 
     Ok(())
 }
