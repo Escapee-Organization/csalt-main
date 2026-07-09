@@ -5,6 +5,7 @@
 use crate::cli::CompileArgs;
 use crate::config::{CompilerBackend, SaltLock, SaltToml, UnitKinds};
 use serde_json;
+#[cfg(feature = "experimental")]
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::io::{Error, ErrorKind};
@@ -56,7 +57,6 @@ fn verify_command(command_name: &str) -> Result<(), Box<dyn std::error::Error>> 
     }
 }
 
-const LOCK_FILE_PATH: &str = "Salt.lock";
 const LOCK_VERSION: &str = "0.1.0";
 
 // TODO: Implement GitHub release tags and actions
@@ -75,6 +75,7 @@ pub fn update_csalt() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[cfg(feature = "experimental")]
 fn compute_hash(file_string: &str) -> String {
     let hash_bytes = Sha256::digest(file_string.as_bytes());
     hash_bytes
@@ -84,7 +85,7 @@ fn compute_hash(file_string: &str) -> String {
 }
 
 fn load_or_init_lock(current_toml: &SaltToml) -> Result<SaltLock, Box<dyn std::error::Error>> {
-    let lock_path = Path::new(LOCK_FILE_PATH);
+    let lock_path = Path::new("Salt.lock");
     if lock_path.exists() {
         if let Ok(contents) = fs::read_to_string(lock_path) {
             if !contents.trim().is_empty() {
