@@ -304,28 +304,20 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
                     }
                 }
             }
-            CompilerBackend::Msvc | CompilerBackend::ClangCl => {
-                if let Some(ref include_path) = unit.include {
-                    for path in include_path {
-                        target_compiler.arg("/I").arg(path);
-                    }
+            CompilerBackend::Msvc | CompilerBackend::ClangCl => match unit.kind {
+                UnitKinds::Bin => {
+                    target_compiler.arg(format!("/Fe:{}", output_executable.to_str().unwrap()));
                 }
-
-                match unit.kind {
-                    UnitKinds::Bin => {
-                        target_compiler.arg(format!("/Fe:{}", output_executable.to_str().unwrap()));
-                    }
-                    UnitKinds::Dyn => {
-                        let out_dyn = cache_dir.join(format!("{}.dll", unit.name));
-                        target_compiler
-                            .arg("/LD")
-                            .arg(format!("/Fe:{}", out_dyn.to_str().unwrap()));
-                    }
-                    UnitKinds::Lib => {
-                        target_compiler.arg("/c");
-                    }
+                UnitKinds::Dyn => {
+                    let out_dyn = cache_dir.join(format!("{}.dll", unit.name));
+                    target_compiler
+                        .arg("/LD")
+                        .arg(format!("/Fe:{}", out_dyn.to_str().unwrap()));
                 }
-            }
+                UnitKinds::Lib => {
+                    target_compiler.arg("/c");
+                }
+            },
         }
 
         for src_file in &unit.src {
