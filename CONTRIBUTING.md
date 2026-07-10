@@ -12,7 +12,7 @@ Thank you for your interest in helping build C-Salt! We welcome all contribution
 By participating in this project, you agree to abide by our behavioral expectations. Please be respectful and welcoming to all community members.
 
 ## How Can I Contribute?
-On all issues, if you are willing to contribute, drop a comment letting us know so we can move onto 
+On all issues, if you are willing to contribute, drop a comment letting us know so we can assign you to the issue and move onto another feature or bug of higher priority.
 
 ### Reporting Bugs
 - Check the Issues tab to ensure the bug hasn't already been reported.
