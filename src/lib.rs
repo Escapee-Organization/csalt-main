@@ -3,7 +3,7 @@
 // Copyright (c) 2026 Escapee Organization
 
 use crate::cli::CompileArgs;
-use crate::config::{CompilerBackend, SaltLock, SaltToml, UnitKinds};
+use crate::config::{CEditions, CompilerBackend, SaltLock, SaltToml, UnitKinds};
 use serde_json;
 #[cfg(feature = "experimental")]
 use sha2::{Digest, Sha256};
@@ -285,6 +285,14 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
                     }
                 }
 
+                match lock.manifest.build.edition {
+                    CEditions::C89 => target_compiler.arg("-std=c89"),
+                    CEditions::C99 => target_compiler.arg("-std=c99"),
+                    CEditions::C11 => target_compiler.arg("-std=c11"),
+                    CEditions::C17 => target_compiler.arg("-std=c17"),
+                    CEditions::C23 => target_compiler.arg("-std=c23"),
+                };
+
                 match unit.kind {
                     UnitKinds::Bin => {
                         target_compiler.arg("-o").arg(&output_executable);
@@ -328,38 +336,55 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
                     }
                 }
             }
-            CompilerBackend::Msvc | CompilerBackend::ClangCl => match unit.kind {
-                UnitKinds::Bin => {
-                    target_compiler.arg(format!("/Fe:{}", output_executable.to_str().unwrap()));
+            CompilerBackend::Msvc | CompilerBackend::ClangCl => {
+                match lock.manifest.build.edition {
+                    CEditions::C89 => {}
+                    CEditions::C99 => {}
+                    CEditions::C11 => {
+                        target_compiler.arg("/std:c11");
+                    }
+                    CEditions::C17 => {
+                        target_compiler.arg("/std:c17");
+                    }
+                    CEditions::C23 => {
+                        target_compiler.arg("/std:clatest");
+                    }
+                };
 
-                    // --- DEBUG ---
-                    if debug_on {
-                        debug_output_text.push_str(
-                            format!("/Fe:{}", output_executable.to_str().unwrap()).as_str(),
-                        );
+                match unit.kind {
+                    UnitKinds::Bin => {
+                        target_compiler.arg(format!("/Fe:{}", output_executable.to_str().unwrap()));
+
+                        // --- DEBUG ---
+                        if debug_on {
+                            debug_output_text.push_str(
+                                format!("/Fe:{}", output_executable.to_str().unwrap()).as_str(),
+                            );
+                        }
+                    }
+                    UnitKinds::Dyn => {
+                        let out_dyn = cache_dir.join(format!("{}.dll", unit.name));
+                        target_compiler
+                            .arg("/LD")
+                            .arg(format!("/Fe:{}", out_dyn.to_str().unwrap()));
+
+                        // --- DEBUG ---
+                        if debug_on {
+                            debug_output_text.push_str(
+                                format!("/LD /Fe:{}", out_dyn.to_str().unwrap()).as_str(),
+                            );
+                        }
+                    }
+                    UnitKinds::Lib => {
+                        target_compiler.arg("/c");
+
+                        // --- DEBUG ---
+                        if debug_on {
+                            debug_output_text.push_str(" /c");
+                        }
                     }
                 }
-                UnitKinds::Dyn => {
-                    let out_dyn = cache_dir.join(format!("{}.dll", unit.name));
-                    target_compiler
-                        .arg("/LD")
-                        .arg(format!("/Fe:{}", out_dyn.to_str().unwrap()));
-
-                    // --- DEBUG ---
-                    if debug_on {
-                        debug_output_text
-                            .push_str(format!("/LD /Fe:{}", out_dyn.to_str().unwrap()).as_str());
-                    }
-                }
-                UnitKinds::Lib => {
-                    target_compiler.arg("/c");
-
-                    // --- DEBUG ---
-                    if debug_on {
-                        debug_output_text.push_str(" /c");
-                    }
-                }
-            },
+            }
         }
 
         if let Some(include_paths) = &unit.include {

@@ -19,6 +19,16 @@ pub enum UnitKinds {
     Bin,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum CEditions {
+    C89,
+    C99,
+    C11,
+    C17,
+    C23,
+}
+
 // TODO: Separate this into the build system AND version. This was done for the MVP to keep things simple, as well as focusing only on keystone versions right after a major policy or edition change
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum BuildSystems {
@@ -42,6 +52,7 @@ pub enum CompilerBackend {
     ClangCl,
 }
 
+// --------- DATA STRUCTURES -> FUNCTIONS ---------
 impl CompilerBackend {
     pub fn from_string(s: &str) -> Result<Self, &'static str> {
         match s {
@@ -88,7 +99,7 @@ pub struct PackageSection {
 pub struct BuildSection {
     pub build_system: BuildSystems,
     pub build_dir: Option<PathBuf>,
-    pub edition: String,
+    pub edition: CEditions,
     pub compiler: CompilerBackend,
 }
 
@@ -196,6 +207,12 @@ impl SaltToml {
                         ));
                     }
                 }
+            }
+        }
+
+        if self.build.edition == CEditions::C89 {
+            if self.build.compiler == CompilerBackend::Msvc {
+                return Err("C89 is not supported with MSVC".to_string());
             }
         }
 

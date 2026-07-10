@@ -4,7 +4,8 @@
 
 use crate::cli::NewArgs;
 use crate::config::{
-    BuildSection, BuildSystems, CompilerBackend, PackageSection, SaltToml, UnitKinds, UnitVector,
+    BuildSection, BuildSystems, CEditions, CompilerBackend, PackageSection, SaltToml, UnitKinds,
+    UnitVector,
 };
 use crate::verify_command;
 use dirs::home_dir;
@@ -121,7 +122,7 @@ pub fn init_project(
         build: BuildSection {
             build_system: BuildSystems::CMake3_15,
             build_dir: Some(PathBuf::from("build/")),
-            edition: "2011".to_string(),
+            edition: CEditions::C11,
             compiler: CompilerBackend::Clang,
         },
         unit: vec![UnitVector {
