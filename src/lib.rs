@@ -224,14 +224,18 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
     let base_dir = std::env::current_dir()?;
     fs_utils::verify_workspace(&base_dir)?;
     let cache_dir = base_dir.join(".csalt");
-    // TODO: Consider a more professional output directory
-    let out_bin_dir = base_dir.join("build").join("bin");
-    fs::create_dir_all(&out_bin_dir)?;
 
     let salt_toml_str = fs::read_to_string(base_dir.join("Salt.toml"))?;
     let current_toml: SaltToml = toml::from_str(&salt_toml_str)?;
 
     let lock = load_or_init_lock(&current_toml)?;
+
+    // TODO: Consider a more professional output directory
+    let out_bin_dir = base_dir.join(match &lock.manifest.build.build_dir {
+        Some(dir) => dir,
+        None => Path::new("build/bin"),
+    });
+    fs::create_dir_all(&out_bin_dir)?;
 
     fs_utils::copy_project_files(&base_dir, &cache_dir)?;
 
@@ -257,6 +261,10 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
             out_bin_dir.join(&unit.name).with_extension("exe")
         } else {
             out_bin_dir.join(&unit.name)
+        };
+        let obj_ext = match compiler_backend {
+            CompilerBackend::Gcc | CompilerBackend::Zig | CompilerBackend::Clang => "o",
+            CompilerBackend::Msvc | CompilerBackend::ClangCl => "obj",
         };
 
         // --- DEBUG ---
@@ -392,6 +400,20 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
             }
         }
 
+        if unit.kind == UnitKinds::Lib {
+            match compiler_backend {
+                CompilerBackend::Msvc | CompilerBackend::ClangCl => {}
+                CompilerBackend::Clang | CompilerBackend::Gcc | CompilerBackend::Zig => {
+                    if let Some(build_dir) = &lock.manifest.build.build_dir {
+                        fs::create_dir_all(cache_dir.join(build_dir))?;
+                        let mut unified_o = PathBuf::from(build_dir);
+                        unified_o.push(format!("{}.{}", unit.name, obj_ext));
+                        target_compiler.arg("-o").arg(unified_o);
+                    }
+                }
+            }
+        }
+
         for (dep_name, _dep_kind) in &unit.resolved_deps {
             // Tell the compiler to look right inside our current scratchpad dir for dependencies
             match compiler_backend {
@@ -467,29 +489,10 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
                 }
             };
 
-            let obj_ext = match compiler_backend {
-                CompilerBackend::Gcc | CompilerBackend::Zig | CompilerBackend::Clang => "o",
-                CompilerBackend::Msvc | CompilerBackend::ClangCl => "obj",
-            };
-
-            // Collect the compiled .o files matching our source targets
-            for src_file in &unit.src {
-                let mut o_file = src_file.clone();
-                o_file.set_extension(obj_ext);
-                let relative_o = o_file.strip_prefix(&base_dir)?;
-                ar_command.arg(relative_o);
-
-                // --- DEBUG ---
-                if debug_on {
-                    debug_output_text.push_str(
-                        format!(
-                            "{} {}",
-                            &compiler_backend.to_string(),
-                            relative_o.to_str().unwrap()
-                        )
-                        .as_str(),
-                    );
-                }
+            if let Some(build_dir) = &lock.manifest.build.build_dir {
+                let mut unified_o = cache_dir.join(build_dir);
+                unified_o.push(format!("{}.{}", unit.name, obj_ext));
+                ar_command.arg(unified_o);
             }
 
             let ar_status = ar_command.current_dir(&cache_dir).status()?;
