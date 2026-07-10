@@ -32,6 +32,18 @@ pub fn verify_workspace(base_dir: &Path) -> Result<(), Box<dyn std::error::Error
     Ok(())
 }
 
+pub fn clean_cache_dir() -> Result<(), Box<dyn std::error::Error>> {
+    let base_dir = std::env::current_dir()?;
+    verify_workspace(&base_dir)?;
+    let cache_dir = base_dir.join(".csalt");
+    if cache_dir.exists() {
+        fs::remove_dir_all(&cache_dir)?;
+    }
+
+    fs::create_dir_all(cache_dir).map_err(|e| Error::new(ErrorKind::Other, e))?;
+    Ok(())
+}
+
 // TODO: Consider using `Salt.lock` to exclude unnecessary file copying
 pub fn copy_project_files(
     base_dir: &Path,

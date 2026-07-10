@@ -36,6 +36,10 @@ pub enum Commands {
     #[command(name = "compile")]
     Compile(CompileArgs),
 
+    /// Clean the cache directory (.csalt/)
+    #[command(name = "clean")]
+    Clean,
+
     #[cfg(feature = "experimental")]
     /// Build using a build system
     #[command(name = "build")]

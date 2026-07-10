@@ -48,6 +48,14 @@ fn main() {
                 std::process::exit(1);
             }
         }
+
+        Commands::Clean => {
+            if let Err(e) = fs_utils::clean_cache_dir() {
+                eprintln!("[ERROR]\n{}", e);
+                std::process::exit(1);
+            }
+        }
+
         #[cfg(feature = "experimental")]
         Commands::Build(_salt_args) => {}
     }
