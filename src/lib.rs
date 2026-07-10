@@ -272,11 +272,6 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
                 if compiler_backend == CompilerBackend::Zig {
                     target_compiler.arg("cc");
                 }
-                if let Some(ref include_path) = unit.include {
-                    for path in include_path {
-                        target_compiler.arg("-I").arg(path);
-                    }
-                }
 
                 match unit.kind {
                     UnitKinds::Bin => {
