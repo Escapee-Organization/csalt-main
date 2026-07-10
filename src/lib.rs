@@ -175,16 +175,7 @@ pub fn prepare_build_plan(
                 };
 
                 if target.exists() {
-                    if target.is_file() {
-                        gathered_include_files.push(target);
-                    } else if target.is_dir() {
-                        for entry in fs::read_dir(target)? {
-                            let path = entry?.path();
-                            if path.is_file() && path.extension().map_or(false, |ext| ext == "c") {
-                                gathered_include_files.push(path);
-                            }
-                        }
-                    }
+                    gathered_include_files.push(target);
                 } else {
                     return Err(format!(
                         "File not found for include: {}",
@@ -250,9 +241,10 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
     } else {
         lock.manifest.build.compiler.clone()
     };
-    verify_command(&compiler_backend.to_string())?;
 
+    verify_command(&compiler_backend.to_string())?;
     let build_plan = prepare_build_plan(&lock, &base_dir)?;
+    let debug_on = false; // Disable debug output from existing, but keep the code so it can be enabled later
 
     for unit in build_plan {
         println!(
@@ -267,15 +259,33 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
             out_bin_dir.join(&unit.name)
         };
 
+        // --- DEBUG ---
+        let mut debug_output_text = String::new();
+        if debug_on {
+            debug_output_text.push_str("[DEBUG COMMAND] ");
+            debug_output_text.push_str(&compiler_backend.to_string());
+        }
+
         match compiler_backend {
             CompilerBackend::Gcc | CompilerBackend::Clang | CompilerBackend::Zig => {
                 if compiler_backend == CompilerBackend::Zig {
                     target_compiler.arg("cc");
+
+                    // --- DEBUG ---
+                    if debug_on {
+                        debug_output_text.push_str(" cc");
+                    }
                 }
 
                 match unit.kind {
                     UnitKinds::Bin => {
                         target_compiler.arg("-o").arg(&output_executable);
+
+                        // --- DEBUG ---
+                        if debug_on {
+                            debug_output_text.push_str(" -o ");
+                            debug_output_text.push_str(&output_executable.to_string_lossy());
+                        }
                     }
                     UnitKinds::Dyn => {
                         let dyn_ext = if cfg!(target_os = "windows") {
@@ -290,46 +300,95 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
                             .arg("-shared")
                             .arg("-fPIC")
                             .arg("-o")
-                            .arg(out_dyn);
+                            .arg(&out_dyn);
+
+                        // --- DEBUG ---
+                        if debug_on {
+                            debug_output_text.push_str(" -shared -fPIC -o ");
+                            debug_output_text.push_str(&out_dyn.to_string_lossy());
+                        }
                     }
                     UnitKinds::Lib => {
                         // Static libraries are archives of individual object (.o) files
                         // We instruct GCC to compile source targets to relocatable objects first (-c)
                         target_compiler.arg("-c");
+
+                        // --- DEBUG ---
+                        if debug_on {
+                            debug_output_text.push_str(" -c");
+                        }
                     }
                 }
             }
             CompilerBackend::Msvc | CompilerBackend::ClangCl => match unit.kind {
                 UnitKinds::Bin => {
                     target_compiler.arg(format!("/Fe:{}", output_executable.to_str().unwrap()));
+
+                    // --- DEBUG ---
+                    if debug_on {
+                        debug_output_text.push_str(
+                            format!("/Fe:{}", output_executable.to_str().unwrap()).as_str(),
+                        );
+                    }
                 }
                 UnitKinds::Dyn => {
                     let out_dyn = cache_dir.join(format!("{}.dll", unit.name));
                     target_compiler
                         .arg("/LD")
                         .arg(format!("/Fe:{}", out_dyn.to_str().unwrap()));
+
+                    // --- DEBUG ---
+                    if debug_on {
+                        debug_output_text
+                            .push_str(format!("/LD /Fe:{}", out_dyn.to_str().unwrap()).as_str());
+                    }
                 }
                 UnitKinds::Lib => {
                     target_compiler.arg("/c");
+
+                    // --- DEBUG ---
+                    if debug_on {
+                        debug_output_text.push_str(" /c");
+                    }
                 }
             },
         }
 
+        if let Some(include_paths) = &unit.include {
+            for include_path in include_paths {
+                if let Ok(absolute_inc) = include_path.canonicalize() {
+                    match compiler_backend {
+                        CompilerBackend::Msvc | CompilerBackend::ClangCl => {
+                            target_compiler.arg(format!("/I{}", absolute_inc.to_string_lossy()));
+
+                            // --- DEBUG ---
+                            if debug_on {
+                                debug_output_text.push_str(
+                                    format!(" /I{}", absolute_inc.to_string_lossy()).as_str(),
+                                );
+                            }
+                        }
+                        _ => {
+                            target_compiler.arg("-I").arg(&absolute_inc);
+
+                            // --- DEBUG ---
+                            if debug_on {
+                                debug_output_text.push_str(
+                                    format!(" -I{}", absolute_inc.to_string_lossy()).as_str(),
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
         for src_file in &unit.src {
             let relative_src = src_file.strip_prefix(&base_dir)?;
             target_compiler.arg(relative_src);
-        }
-        if let Some(include_paths) = &unit.include {
-            for include_path in include_paths {
-                let relative_inc = include_path.strip_prefix(&base_dir)?;
-                match compiler_backend {
-                    CompilerBackend::Msvc | CompilerBackend::ClangCl => {
-                        target_compiler.arg(format!("/I{}", relative_inc.to_str().unwrap()));
-                    }
-                    _ => {
-                        target_compiler.arg("-I").arg(relative_inc);
-                    }
-                }
+
+            // --- DEBUG ---
+            if debug_on {
+                debug_output_text.push_str(format!(" {}", relative_src.to_str().unwrap()).as_str());
             }
         }
 
@@ -338,9 +397,19 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
             match compiler_backend {
                 CompilerBackend::Msvc | CompilerBackend::ClangCl => {
                     target_compiler.arg(format!("{}.lib", dep_name));
+
+                    // --- DEBUG ---
+                    if debug_on {
+                        debug_output_text.push_str(format!(" {}.lib", dep_name).as_str());
+                    }
                 }
                 _ => {
                     target_compiler.arg("-L.").arg(format!("-l{}", dep_name));
+
+                    // --- DEBUG ---
+                    if debug_on {
+                        debug_output_text.push_str(format!(" -l{}", dep_name).as_str());
+                    }
                 }
             }
         }
@@ -367,12 +436,33 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
                             .to_str()
                             .unwrap()
                     ));
+
+                    // --- DEBUG ---
+                    if debug_on {
+                        debug_output_text.push_str(
+                            format!(
+                                "lib /OUT:{}",
+                                cache_dir
+                                    .join(format!("{}.lib", unit.name))
+                                    .to_str()
+                                    .unwrap()
+                            )
+                            .as_str(),
+                        );
+                    }
+
                     cmd
                 }
                 CompilerBackend::Gcc | CompilerBackend::Zig | CompilerBackend::Clang => {
                     let mut cmd = std::process::Command::new("ar");
                     cmd.arg("rcs");
                     cmd.arg(format!("lib{}.a", unit.name));
+
+                    // --- DEBUG ---
+                    if debug_on {
+                        debug_output_text.push_str(format!("ar rcs lib{}.a", unit.name).as_str());
+                    }
+
                     cmd
                 }
             };
@@ -388,6 +478,18 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
                 o_file.set_extension(obj_ext);
                 let relative_o = o_file.strip_prefix(&base_dir)?;
                 ar_command.arg(relative_o);
+
+                // --- DEBUG ---
+                if debug_on {
+                    debug_output_text.push_str(
+                        format!(
+                            "{} {}",
+                            &compiler_backend.to_string(),
+                            relative_o.to_str().unwrap()
+                        )
+                        .as_str(),
+                    );
+                }
             }
 
             let ar_status = ar_command.current_dir(&cache_dir).status()?;
@@ -399,6 +501,11 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
                 .into());
             }
         }
+
+        // --- DEBUG ---
+        if debug_on {
+            dbg!("{}", debug_output_text);
+        }
     }
 
     // TODO: Transpile the input files, and refactor above loop to use this.
@@ -407,6 +514,18 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
 
     let updated_lock = serde_json::to_string(&lock)?;
     fs::write(base_dir.join("Salt.lock"), updated_lock)?;
+
+    if args.run {
+        let mut run_command = std::process::Command::new(&out_bin_dir);
+        let status = run_command.status()?;
+        if !status.success() {
+            return Err(format!(
+                "Failed to run executable: {}",
+                out_bin_dir.to_str().unwrap()
+            )
+            .into());
+        }
+    }
 
     Ok(())
 }

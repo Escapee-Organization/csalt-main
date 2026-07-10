@@ -119,6 +119,7 @@ pub struct SaltToml {
     pub unit: Vec<UnitVector>,
 }
 
+// ------------------ FUNCTIONS ------------------
 impl SaltToml {
     pub fn validate(&self) -> Result<(), String> {
         // 1. Ensure the package name isn't blank
@@ -182,6 +183,17 @@ impl SaltToml {
                 for dep in deps {
                     if !declared_libs.contains(dep.trim()) {
                         return Err(format!("Dependency '{}' is not declared before use", dep));
+                    }
+                }
+            }
+
+            if let Some(includes) = &target.include {
+                for include in includes {
+                    if include.is_file() {
+                        return Err(format!(
+                            "Include '{}' is a file, not a directory",
+                            include.display()
+                        ));
                     }
                 }
             }

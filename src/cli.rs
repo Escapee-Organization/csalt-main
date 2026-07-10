@@ -82,6 +82,11 @@ pub struct CompileArgs {
     #[arg(short = 'r', long = "run", conflicts_with = "backend_flags")]
     pub run: bool,
 
+    #[cfg(feature = "experimental")]
+    /// Debug mode, enables debug output
+    #[arg(long = "debug")]
+    pub debug: bool,
+
     /// Trailing parameters forwarded completely intact to the backend compiler layer
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, action = ArgAction::Append)]
     pub backend_flags: Vec<String>,
