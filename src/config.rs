@@ -47,6 +47,18 @@ pub enum CompilerBackend {
 }
 
 // --------- DATA STRUCTURES -> FUNCTIONS ---------
+impl CEditions {
+    pub fn to_string(&self) -> &str {
+        match self {
+            Self::C89 => "c89",
+            Self::C99 => "c99",
+            Self::C11 => "c11",
+            Self::C17 => "c17",
+            Self::C23 => "c23",
+        }
+    }
+}
+
 impl BuildSystems {
     pub fn from_string(s: &str) -> Result<Self, &'static str> {
         match s {

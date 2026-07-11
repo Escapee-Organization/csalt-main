@@ -8,7 +8,7 @@ use serde_json;
 #[cfg(feature = "experimental")]
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
-use std::io::{Error, ErrorKind};
+use std::io::{Error, ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::{collections, fs};
@@ -598,11 +598,18 @@ pub fn build_managed_project(build_args: &BuildArgs) -> Result<(), Box<dyn std::
 
     let lock = load_or_init_lock(&current_toml)?;
     emit_project(&base_dir, &cache_dir)?;
+    let build_dir = base_dir
+        .join(if let Some(build_dir) = &lock.manifest.build.build_dir {
+            build_dir.clone()
+        } else {
+            PathBuf::from("build")
+        })
+        .canonicalize()?;
 
     let backend = if let Some(backend) = &build_args.backend {
         BuildSystems::from_string(backend)?
     } else {
-        lock.manifest.build.build_sys
+        lock.manifest.build.build_sys.clone()
     };
 
     if !build_args.backend_flags.is_empty() {
@@ -618,5 +625,161 @@ pub fn build_managed_project(build_args: &BuildArgs) -> Result<(), Box<dyn std::
         return Ok(());
     }
 
+    match backend {
+        BuildSystems::CMake => {
+            let user_cmake_path = base_dir.join("CMakeLists.txt");
+            let mode = if user_cmake_path.exists() {
+                BuildMode::Managed
+            } else {
+                BuildMode::Fresh
+            };
+
+            if mode == BuildMode::Managed {
+                println!("[info] Manual CMakeLists.txt detected. Running in Managed Mode...");
+
+                let mut cmake_configure = std::process::Command::new("cmake");
+                cmake_configure
+                    .current_dir(&cache_dir)
+                    .arg("-B")
+                    .arg(&build_dir);
+
+                let config_status = cmake_configure.status()?;
+                if !config_status.success() {
+                    return Err("CMake configuration failed".into());
+                }
+
+                let mut cmake_build = std::process::Command::new("cmake");
+                cmake_build
+                    .current_dir(&cache_dir)
+                    .arg("--build")
+                    .arg(&build_dir);
+
+                let build_status = cmake_build.status()?;
+                if !build_status.success() {
+                    return Err("CMake build step failed".into());
+                }
+
+                println!("[info] Managed Mode build finished successfully!");
+            } else {
+                println!(
+                    "[info] No manual configuration found. Generating Fresh CMakeLists.txt..."
+                );
+
+                let plan = prepare_build_plan(&lock, base_dir.as_path())?;
+
+                match fs::OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .truncate(true)
+                    .open(cache_dir.join("CMakeLists.txt"))
+                {
+                    Ok(mut file) => {
+                        writeln!(
+                            file,
+                            "cmake_minimum_required(VERSION {})",
+                            lock.manifest.build.build_sys_ver
+                        )?;
+                        writeln!(file, "project({} LANGUAGES C)", lock.manifest.package.name)?;
+                        writeln!(
+                            file,
+                            "# !![ REMOVE the following line (output directory) if moving to main directory ]!!"
+                        )?;
+                        writeln!(
+                            file,
+                            "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"{}\")",
+                            &build_dir.to_string_lossy().replace('\\', "/")
+                        )?;
+                        writeln!(
+                            file,
+                            "set(CMAKE_C_STANDARD {})\nset(CMAKE_C_STANDARD_REQUIRED ON)",
+                            lock.manifest.build.edition.to_string().replace('c', "")
+                        )?;
+                        writeln!(file)?;
+
+                        for unit in &plan {
+                            let mut unit_paths = Vec::new();
+                            for path in &unit.src {
+                                if let Ok(relative_path) = path.strip_prefix(&base_dir) {
+                                    unit_paths
+                                        .push(relative_path.to_string_lossy().replace('\\', "/"));
+                                }
+                            }
+                            let src_paths = unit_paths.join(" ");
+
+                            match unit.kind {
+                                UnitKinds::Bin => {
+                                    writeln!(file, "# === UNIT: bin {} ===", unit.name)?;
+                                    writeln!(file, "add_executable({} {})", unit.name, src_paths)?;
+                                }
+                                UnitKinds::Lib => {
+                                    writeln!(file, "# === UNIT: lib {} ===", unit.name)?;
+                                    writeln!(
+                                        file,
+                                        "add_library({} STATIC {})",
+                                        unit.name, src_paths
+                                    )?;
+                                }
+                                UnitKinds::Dyn => {
+                                    writeln!(file, "# === UNIT: dyn {} ===", unit.name)?;
+                                    writeln!(
+                                        file,
+                                        "add_library({} SHARED {})",
+                                        unit.name, src_paths
+                                    )?;
+                                }
+                            }
+                            if let Some(includes) = &unit.include {
+                                for inc in includes {
+                                    if let Ok(rel_inc) = inc.strip_prefix(&base_dir) {
+                                        writeln!(
+                                            file,
+                                            "target_include_directories({} PRIVATE {})",
+                                            unit.name,
+                                            rel_inc.to_string_lossy()
+                                        )?;
+                                    }
+                                }
+                            }
+
+                            if !unit.resolved_deps.is_empty() {
+                                writeln!(file, "# === DEPS: {} ===", &unit.name)?;
+                                write!(file, "target_link_libraries({} PRIVATE ", unit.name)?;
+                                let mut unit_deps = Vec::new();
+                                for (dep_name, _dep_kind) in &unit.resolved_deps {
+                                    unit_deps.push(dep_name.clone());
+                                }
+                                let dep_str = unit_deps.join(" ");
+                                writeln!(file, "{})", dep_str)?;
+                            }
+                            writeln!(file)?;
+                        }
+
+                        let mut cmake_configure = std::process::Command::new("cmake");
+                        cmake_configure
+                            .current_dir(&cache_dir)
+                            .arg("-B")
+                            .arg(&build_dir);
+                        if !cmake_configure.status()?.success() {
+                            return Err("CMake configuration failed in Fresh Mode".into());
+                        }
+
+                        let mut cmake_build = std::process::Command::new("cmake");
+                        cmake_build
+                            .current_dir(&cache_dir)
+                            .arg("--build")
+                            .arg(&build_dir);
+                        if !cmake_build.status()?.success() {
+                            return Err("CMake build step failed in Fresh Mode".into());
+                        }
+
+                        println!("[info] Fresh Mode build finished successfully!");
+                    }
+                    Err(e) => {
+                        return Err(e.into());
+                    }
+                }
+            }
+        }
+    }
     Ok(())
 }
