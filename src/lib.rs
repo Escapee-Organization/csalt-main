@@ -240,7 +240,7 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
     // TODO: Consider a more professional output directory
     let out_bin_dir = base_dir.join(match &lock.manifest.build.build_dir {
         Some(dir) => dir,
-        None => Path::new("build/bin"),
+        None => Path::new("build/"),
     });
     fs::create_dir_all(&out_bin_dir)?;
 
