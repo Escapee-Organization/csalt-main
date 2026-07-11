@@ -36,6 +36,10 @@ pub enum Commands {
     #[command(name = "compile")]
     Compile(CompileArgs),
 
+    /// Build using a build system
+    #[command(name = "build")]
+    Build(BuildArgs),
+
     /// Emit and generate the project
     #[command(name = "emit")]
     Emit,
@@ -43,11 +47,6 @@ pub enum Commands {
     /// Clean the cache directory (.csalt/)
     #[command(name = "clean")]
     Clean,
-
-    #[cfg(feature = "experimental")]
-    /// Build using a build system
-    #[command(name = "build")]
-    Build(BuildArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -96,14 +95,13 @@ pub struct CompileArgs {
     pub backend_flags: Vec<String>,
 }
 
-#[cfg(feature = "experimental")]
 #[derive(Parser, Debug)]
 pub struct BuildArgs {
-    /// Choose the host build system backend, such as cmake3_15, zig, etc
+    /// Choose the host build system backend, such as cmake, zig, etc.
     #[arg(short = 'b', long = "backend")]
-    backend: Option<String>,
+    pub backend: Option<String>,
 
     /// Trailing parameters forwarded completely intact to the backend compiler layer
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, action = ArgAction::Append)]
-    backend_flags: Vec<String>,
+    pub backend_flags: Vec<String>,
 }

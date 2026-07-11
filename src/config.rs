@@ -47,6 +47,27 @@ pub enum CompilerBackend {
 }
 
 // --------- DATA STRUCTURES -> FUNCTIONS ---------
+impl BuildSystems {
+    pub fn from_string(s: &str) -> Result<Self, &'static str> {
+        match s {
+            "cmake" => Ok(Self::CMake),
+            _ => Err("unknown build system"),
+        }
+    }
+
+    pub fn to_string(&self) -> &str {
+        match self {
+            Self::CMake => "cmake",
+        }
+    }
+
+    pub fn generate_command(&self) -> Command {
+        match self {
+            Self::CMake => Command::new("cmake"),
+        }
+    }
+}
+
 impl CompilerBackend {
     pub fn from_string(s: &str) -> Result<Self, &'static str> {
         match s {

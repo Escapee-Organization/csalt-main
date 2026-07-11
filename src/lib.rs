@@ -2,8 +2,8 @@
 // If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org.
 // Copyright (c) 2026 Escapee Organization
 
-use crate::cli::CompileArgs;
-use crate::config::{CEditions, CompilerBackend, SaltLock, SaltToml, UnitKinds};
+use crate::cli::{BuildArgs, CompileArgs};
+use crate::config::{BuildSystems, CEditions, CompilerBackend, SaltLock, SaltToml, UnitKinds};
 use serde_json;
 #[cfg(feature = "experimental")]
 use sha2::{Digest, Sha256};
@@ -31,6 +31,12 @@ pub struct PreparedUnit {
     pub src: Vec<PathBuf>,
     pub include: Option<Vec<PathBuf>>,
     pub resolved_deps: Vec<(String, UnitKinds)>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum BuildMode {
+    Managed,
+    Fresh,
 }
 
 // -------------------- FUNCTIONS --------------------
@@ -575,6 +581,41 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
             )
             .into());
         }
+    }
+
+    Ok(())
+}
+
+pub fn build_managed_project(build_args: &BuildArgs) -> Result<(), Box<dyn std::error::Error>> {
+    println!("[info] Building project...");
+
+    let base_dir = std::env::current_dir()?;
+    fs_utils::verify_workspace(&base_dir)?;
+    let cache_dir = base_dir.join(".csalt");
+
+    let salt_toml_str = fs::read_to_string(base_dir.join("Salt.toml"))?;
+    let current_toml: SaltToml = toml::from_str(&salt_toml_str)?;
+
+    let lock = load_or_init_lock(&current_toml)?;
+    emit_project(&base_dir, &cache_dir)?;
+
+    let backend = if let Some(backend) = &build_args.backend {
+        BuildSystems::from_string(backend)?
+    } else {
+        lock.manifest.build.build_sys
+    };
+
+    if !build_args.backend_flags.is_empty() {
+        let mut target_build = backend.generate_command();
+        target_build
+            .args(&build_args.backend_flags)
+            .current_dir(&base_dir);
+        let status = target_build.status()?;
+        if !status.success() {
+            return Err("Failed to build project".into());
+        }
+
+        return Ok(());
     }
 
     Ok(())

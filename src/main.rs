@@ -7,7 +7,7 @@ use clap::Parser;
 use csalt::cli::{Args, Commands};
 #[cfg(feature = "experimental")]
 use csalt::update_csalt;
-use csalt::{build_manual_project, emit_project, fs_utils};
+use csalt::{build_managed_project, build_manual_project, emit_project, fs_utils};
 
 fn main() {
     if let Err(e) = fs_utils::ensure_cache_dir() {
@@ -66,7 +66,11 @@ fn main() {
             }
         }
 
-        #[cfg(feature = "experimental")]
-        Commands::Build(_salt_args) => {}
+        Commands::Build(_build_args) => {
+            if let Err(e) = build_managed_project(_build_args) {
+                eprintln!("[ERROR]\n{}", e);
+                std::process::exit(1);
+            }
+        }
     }
 }
