@@ -7,7 +7,7 @@ use clap::Parser;
 use csalt::cli::{Args, Commands};
 #[cfg(feature = "experimental")]
 use csalt::update_csalt;
-use csalt::{build_manual_project, fs_utils};
+use csalt::{build_manual_project, emit_project, fs_utils};
 
 fn main() {
     if let Err(e) = fs_utils::ensure_cache_dir() {
@@ -47,6 +47,16 @@ fn main() {
                 eprintln!("[ERROR]\n{}", e);
                 std::process::exit(1);
             }
+        }
+
+        Commands::Emit => {
+            let base_dir = std::env::current_dir().unwrap();
+            let cache_dir = base_dir.join(".csalt");
+            if let Err(e) = emit_project(&base_dir, &cache_dir) {
+                eprintln!("[ERROR]\n{}", e);
+                std::process::exit(1);
+            }
+            println!("[info] Project emitted successfully");
         }
 
         Commands::Clean => {

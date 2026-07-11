@@ -36,6 +36,10 @@ pub enum Commands {
     #[command(name = "compile")]
     Compile(CompileArgs),
 
+    /// Emit and generate the project
+    #[command(name = "emit")]
+    Emit,
+
     /// Clean the cache directory (.csalt/)
     #[command(name = "clean")]
     Clean,

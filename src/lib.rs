@@ -123,6 +123,12 @@ pub fn sync_workspace(
     Ok(updated_files)
 }
 
+pub fn emit_project(base_dir: &Path, cache_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    fs_utils::verify_workspace(&base_dir)?;
+    fs_utils::copy_project_files(&base_dir, &cache_dir)?;
+    Ok(())
+}
+
 pub fn prepare_build_plan(
     lock: &SaltLock,
     base_dir: &Path,
@@ -229,6 +235,7 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
     let current_toml: SaltToml = toml::from_str(&salt_toml_str)?;
 
     let lock = load_or_init_lock(&current_toml)?;
+    emit_project(&base_dir, &cache_dir)?;
 
     // TODO: Consider a more professional output directory
     let out_bin_dir = base_dir.join(match &lock.manifest.build.build_dir {
@@ -236,8 +243,6 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
         None => Path::new("build/bin"),
     });
     fs::create_dir_all(&out_bin_dir)?;
-
-    fs_utils::copy_project_files(&base_dir, &cache_dir)?;
 
     // Read in the target compiler from `Salt.lock`. CLI flag overrides
     let compiler_backend: CompilerBackend = if let Some(backend) = &args.backend {
