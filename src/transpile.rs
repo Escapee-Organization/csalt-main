@@ -2,9 +2,8 @@
 // If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org.
 // Copyright (c) 2026 Escapee Organization
 
-use crate::CompileArgs;
-
 // TODO: Create transpile function
-pub fn transpile(args: &CompileArgs) -> Result<(), Box<dyn std::error::Error>> {
-    Ok(())
+#[cfg(feature = "experimental")]
+pub fn transpile(str: &str) -> Result<String, Box<dyn std::error::Error>> {
+    Ok(str.to_string())
 }

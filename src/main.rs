@@ -2,30 +2,15 @@
 // If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org.
 // Copyright (c) 2026 Escapee Organization
 
-// TODO: Use all imports
-
+#![deny(warnings)]
 use clap::Parser;
+use csalt::cli::{Args, Commands};
 #[cfg(feature = "experimental")]
 use csalt::update_csalt;
-use csalt::{Args, Commands, CompileArgs, compile_project, run};
-
-use dirs::home_dir;
-use std::io;
-use std::path::PathBuf;
-pub mod fs_utils;
-
-fn ensure_cache_dir() -> Result<PathBuf, io::Error> {
-    let home = home_dir().ok_or(io::Error::new(
-        io::ErrorKind::NotFound,
-        "[ERROR]\nhome directory not found",
-    ))?;
-    let cache_dir = home.join(".csalt");
-    std::fs::create_dir_all(&cache_dir).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-    Ok(cache_dir)
-}
+use csalt::{build_managed_project, build_manual_project, emit_project, fs_utils};
 
 fn main() {
-    if let Err(e) = ensure_cache_dir() {
+    if let Err(e) = fs_utils::ensure_cache_dir() {
         eprintln!("[ERROR]\n{}", e);
         std::process::exit(1);
     }
@@ -34,16 +19,21 @@ fn main() {
 
     match &args.command {
         Commands::Init { dir } => {
-            if let Err(e) = fs_utils::init_project(&dir.to_string_lossy()) {
+            if let Err(e) = fs_utils::init_project(dir, false, false, false) {
                 eprintln!("[ERROR]\n{}", e);
                 std::process::exit(1);
             }
+            println!("[info]\nProject directory initialized successfully");
         }
-        Commands::New { name, dir } => {
-            if let Err(e) = fs_utils::new_project(name, &dir.to_string_lossy()) {
+        Commands::New(new_args) => {
+            if let Err(e) = fs_utils::new_project(new_args) {
                 eprintln!("[ERROR]\n{}", e);
                 std::process::exit(1);
             }
+            println!(
+                "[info]\nNew project '{}' created successfully",
+                new_args.name
+            );
         }
         #[cfg(feature = "experimental")]
         Commands::Update => {
@@ -53,7 +43,31 @@ fn main() {
             }
         }
         Commands::Compile(salt_args) => {
-            if let Err(e) = compile_project(salt_args) {
+            if let Err(e) = build_manual_project(salt_args) {
+                eprintln!("[ERROR]\n{}", e);
+                std::process::exit(1);
+            }
+        }
+
+        Commands::Emit => {
+            let base_dir = std::env::current_dir().unwrap();
+            let cache_dir = base_dir.join(".csalt");
+            if let Err(e) = emit_project(&base_dir, &cache_dir) {
+                eprintln!("[ERROR]\n{}", e);
+                std::process::exit(1);
+            }
+            println!("[info] Project emitted successfully");
+        }
+
+        Commands::Clean => {
+            if let Err(e) = fs_utils::clean_cache_dir() {
+                eprintln!("[ERROR]\n{}", e);
+                std::process::exit(1);
+            }
+        }
+
+        Commands::Build(_build_args) => {
+            if let Err(e) = build_managed_project(_build_args) {
                 eprintln!("[ERROR]\n{}", e);
                 std::process::exit(1);
             }
