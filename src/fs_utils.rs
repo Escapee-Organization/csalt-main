@@ -120,7 +120,8 @@ pub fn init_project(
             description: "".to_string(),
         },
         build: BuildSection {
-            build_system: BuildSystems::CMake3_15,
+            build_sys: BuildSystems::CMake,
+            build_sys_ver: "3.15".to_string(),
             build_dir: Some(PathBuf::from("build/")),
             edition: CEditions::C11,
             compiler: CompilerBackend::Clang,

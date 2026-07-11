@@ -32,14 +32,8 @@ pub enum CEditions {
 // TODO: Separate this into the build system AND version. This was done for the MVP to keep things simple, as well as focusing only on keystone versions right after a major policy or edition change
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum BuildSystems {
-    #[serde(rename = "cmake3.15")]
-    CMake3_15,
-
-    #[serde(rename = "cmake3.28")]
-    CMake3_28,
-
-    #[serde(rename = "zig0.16")]
-    Zig0_16,
+    #[serde(rename = "cmake")]
+    CMake,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -97,7 +91,8 @@ pub struct PackageSection {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BuildSection {
-    pub build_system: BuildSystems,
+    pub build_sys: BuildSystems,
+    pub build_sys_ver: String,
     pub build_dir: Option<PathBuf>,
     pub edition: CEditions,
     pub compiler: CompilerBackend,
@@ -210,9 +205,16 @@ impl SaltToml {
             }
         }
 
+        // 3. Validate build system and compiler
         if self.build.edition == CEditions::C89 {
             if self.build.compiler == CompilerBackend::Msvc {
                 return Err("C89 is not supported with MSVC".to_string());
+            }
+        }
+
+        if self.build.build_sys == BuildSystems::CMake {
+            if self.build.build_sys_ver != "3.15" || self.build.build_sys_ver != "3.28" {
+                return Err("CMake version must be a baseline/milestone version".to_string());
             }
         }
 
