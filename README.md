@@ -1,5 +1,8 @@
 # C-Salt
 
+> **"Drop your C files and it just works."** A Cargo-inspired, declarative build driver and workspace orchestrator designed to eliminate manual compilation headaches while not compromising control.
+<!-- NOTE: Use shields.io later, when you have the time to figure it out -->
+
 ## Table of Contents
 
 - [Overview](#overview)
@@ -11,17 +14,41 @@
 - [Roadmap](#roadmap)
 - [Contributing and Licensing](#contributing-and-licensing)
 
-## Overview
+## Why C-Salt?
+C isn't a bad language. However, the tooling is tedious and old. C-Salt aims to solve this by providing a modern, Cargo-inspired build orchestrator. It operates on a compilation "unit", which allows for easy management of C projects at the start. However, it also doesn't force `Salt.toml` upon you if you don't want to use it, as C-Salt is a lightweight wrapper, not a replacement.
 
-C-Salt is a Cargo-inspired build orchestrator for both managing existing C projects and creating new ones. Built with Rust, this project's philosophy is **"Drop your files and it just works"**.
+**NOTE**: we use `.csalt/` as a cache for all of its tasks so far to keep your repo clean, but in the future, you will be able to adjust that, and this architecture will prove its usefulness.
+
+```toml
+# Salt.toml
+[package]
+name = "example"
+version = "0.1.0"
+authors = [""]
+description = ""
+
+[build]
+build_sys = "cmake"
+build_sys_ver = "3.15"
+build_dir = "build/"
+edition = "c11"
+compiler = "clang"
+
+[[unit]]
+name = "example"
+kind = "bin" # Three kinds of units: bin, dyn, and lib
+main = "src/main.c"
+src = ["src/"]
+```
+
+**NOTE**: C-Salt is a Minimum Viable Product (MVP) in this current stage. It is not ready for production use, will change heavily, has unfinished features, and is not battle-tested against every edge case.
 
 ## Quick Start
 
 ### Prerequisites
 
-- **Cargo**: Required for building C-Salt itself.
-- **C Compiler**: Required for compiling C code.
-- **Git**: Required for cloning the repository.
+- **Cargo**: required for installing C-Salt itself.
+- **C Compiler**: `clang` or other compilers.
 
 ### Installation
 ```bash
@@ -32,27 +59,38 @@ cd csalt-main
 # Install the CLI via Cargo
 cargo install --path .
 
-# Run the CLI
+# Verify installation
 csalt --help
 ```
 
 ## Features
 
-- **C Repository Generation**: Just like Cargo, C-Salt can generate new C repositories with a simple command, and provides standards and flexibility for your environment.
-- **Simple Build Configuration**: Uses a simple, human-readable build configuration file (`Salt.toml`) to define build targets and dependencies. Allows for an easy start, with a simple way to opt-out of using it for more complex build systems.
-- **Simple Build System**: Unless you decide to pass trailing var-args to `compile` or `build` commands, C-Salt will automatically handle things for you. `csalt compile` uses C-Salt as a build system, while `csalt build` generates the build files for the build system you are using.
-- **Out of the Way**: C-Salt respects if you already have build files and will **not** use `Salt.toml` to generate new build files, instead trusting your existing ones.
+- **`csalt new <name>`**: Provisions a standardized C workspace complete with `src/`, `include/`, `.gitignore` instantly.
+  - `--git`: Auto-initializes a Git repository.
+  - `--full`: Populates placeholder directories for `vendor/` and `tests/` and `README.md`.
+  - `--stealth`: **Stealth Mode.** Removes configuration files from tracking so you can secretly manage massive legacy codebases with C-Salt without disrupting your team. *Note: it is always wise to copy an existing C project into a new directory before using C-Salt.*
+- **`csalt compile`**: Executes C-Salt as a build system, calling the compiler and linker inside the cache (`.csalt/`), and enforcing a strict, safe compilation order. Supports `bin` (executable), `lib` (static archives), and `dyn` (shared dynamic libraries) out of the box.
+- **`csalt build`**: Automatically acts as a communicator to a build system, such as CMake 3.15. It has two modes:
+  - **Fresh Mode**: Translates your linear `Salt.toml` structure seamlessly into native, readable `CMakeLists.txt` scripts for CMake 3.15, compiling the final workspace cleanly.
+  - **Managed Mode**: Detects if you already have a custom, manual `CMakeLists.txt` in your root, safely steps out of the way, and passes command execution downstream to trust your existing system rules.
+- **Raw Passthrough Escape Hatch**: Pass trailing variable arguments directly to your underlying backend (`csalt (compile/build) -- [args]`) to run raw commands. In other words, it's a macro for:
+  - ```bash
+    csalt emit
+    cd .csalt/
+    <command> [args]
+    cd ..
+    ```
 
 ## AI Usage Disclosure
-The main concepts were developed by the author. A large portion of the current codebase was generated using the Zed Auto-complete functionality and Gemini Flash. 
+All architectural decisions were made by the original creator (BurningHot687). A large portion of the current codebase was generated using the Zed Auto-complete functionality and Gemini Flash.
 
 * **Current Status:** Refactoring is underway to clean up AI-generated sections, optimize maintainability, and ensure long-term stability.
+* **Why AI?:** This was the original creator's first Rust project, which started on 2026/6/7, and finished the summer MVP on 2026/7/10 (albeit not testing). The creator had only written simple "Hello World" programs in C and Rust before this project, so they had to actively learn Rust and C at the same time while working on this project. They used AI to speed up development, get working code quickly, and quickly learn how to use Rust, Git, and more. They also were able to learn enough to spot the mistakes in AI-generated code, which was common due to using a weak model.
 
 ## Roadmap
 See the [ROADMAP](ROADMAP.md) file for details.
 
 ## Contributing & Licensing
-
 If you would like to contribute, please see the [CONTRIBUTING](CONTRIBUTING.md) file for details.
 
 This project is licensed under the MPL 2.0 License. See the [LICENSE](LICENSE) file for details.
