@@ -237,6 +237,23 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
     let lock = load_or_init_lock(&current_toml)?;
     emit_project(&base_dir, &cache_dir)?;
 
+    if !args.backend_flags.is_empty() {
+        let target_compiler = if let Some(backend) = &args.backend {
+            CompilerBackend::from_string(backend.as_str())?
+        } else {
+            lock.manifest.build.compiler
+        };
+
+        let mut actual_compiler = target_compiler.generate_command();
+        actual_compiler.args(args.backend_flags.iter());
+        actual_compiler.current_dir(&cache_dir);
+        let status = actual_compiler.status()?;
+        if !status.success() {
+            return Err("Failed to compile".into());
+        }
+        return Ok(());
+    }
+
     // TODO: Consider a more professional output directory
     let out_bin_dir = base_dir.join(match &lock.manifest.build.build_dir {
         Some(dir) => dir,
