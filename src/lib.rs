@@ -335,13 +335,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                     }
                 }
 
-                match lock.manifest.build.edition {
-                    CEditions::C89 => target_compiler.arg("-std=c89"),
-                    CEditions::C99 => target_compiler.arg("-std=c99"),
-                    CEditions::C11 => target_compiler.arg("-std=c11"),
-                    CEditions::C17 => target_compiler.arg("-std=c17"),
-                    CEditions::C23 => target_compiler.arg("-std=c23"),
-                };
+                target_compiler.arg(format!("-std={}", lock.manifest.build.edition.to_string()));
 
                 match unit.kind {
                     UnitKinds::Bin => {
@@ -399,6 +393,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                     CEditions::C23 => {
                         target_compiler.arg("/std:clatest");
                     }
+                    _ => {} // Unsupported editions are ignored
                 };
 
                 match unit.kind {

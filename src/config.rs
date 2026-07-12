@@ -74,9 +74,7 @@ impl BuildSystems {
     }
 
     pub fn generate_command(&self) -> Command {
-        match self {
-            Self::CMake => Command::new("cmake"),
-        }
+        Command::new(self.to_string())
     }
 }
 
@@ -103,13 +101,7 @@ impl CompilerBackend {
     }
 
     pub fn generate_command(&self) -> Command {
-        match self {
-            Self::Clang => Command::new("clang"),
-            Self::Gcc => Command::new("gcc"),
-            Self::Zig => Command::new("zig"),
-            Self::Msvc => Command::new("cl"),
-            Self::ClangCl => Command::new("clang-cl"),
-        }
+        Command::new(self.to_string())
     }
 }
 
