@@ -3,33 +3,27 @@
 // Copyright (c) 2026 Escapee Organization
 
 #![deny(warnings)]
+use anyhow::Context;
 use clap::Parser;
 use csalt::cli::{Args, Commands};
 #[cfg(feature = "experimental")]
 use csalt::update_csalt;
 use csalt::{build_managed_project, build_manual_project, emit_project, fs_utils};
 
-fn main() {
-    if let Err(e) = fs_utils::ensure_cache_dir() {
-        eprintln!("[ERROR]\n{}", e);
-        std::process::exit(1);
-    }
+// --------------- FUNCTIONS ---------------
+
+fn run_csalt() -> anyhow::Result<()> {
+    fs_utils::ensure_cache_dir().context("Failed to ensure cache directory")?;
 
     let args = Args::parse();
 
     match &args.command {
         Commands::Init { dir } => {
-            if let Err(e) = fs_utils::init_project(dir, false, false, false) {
-                eprintln!("[ERROR]\n{}", e);
-                std::process::exit(1);
-            }
+            fs_utils::init_project(dir, false, false, false)?;
             println!("[info]\nProject directory initialized successfully");
         }
         Commands::New(new_args) => {
-            if let Err(e) = fs_utils::new_project(new_args) {
-                eprintln!("[ERROR]\n{}", e);
-                std::process::exit(1);
-            }
+            fs_utils::new_project(new_args)?;
             println!(
                 "[info]\nNew project '{}' created successfully",
                 new_args.name
@@ -37,40 +31,41 @@ fn main() {
         }
         #[cfg(feature = "experimental")]
         Commands::Update => {
-            if let Err(e) = update_csalt() {
-                eprintln!("[ERROR]\n{}", e);
-                std::process::exit(1);
-            }
+            update_csalt()?;
+            println!("[info]\nCsalt updated successfully");
         }
         Commands::Compile(salt_args) => {
-            if let Err(e) = build_manual_project(salt_args) {
-                eprintln!("[ERROR]\n{}", e);
-                std::process::exit(1);
-            }
+            build_manual_project(salt_args)?;
+            println!("[info]\nProject compiled successfully");
         }
 
         Commands::Emit => {
-            let base_dir = std::env::current_dir().unwrap();
+            let base_dir = std::env::current_dir().context("Failed to get current directory")?;
             let cache_dir = base_dir.join(".csalt");
-            if let Err(e) = emit_project(&base_dir, &cache_dir) {
-                eprintln!("[ERROR]\n{}", e);
-                std::process::exit(1);
-            }
+            emit_project(&base_dir, &cache_dir)?;
             println!("[info] Project emitted successfully");
         }
 
         Commands::Clean => {
-            if let Err(e) = fs_utils::clean_cache_dir() {
-                eprintln!("[ERROR]\n{}", e);
-                std::process::exit(1);
-            }
+            fs_utils::clean_cache_dir()?;
+            println!("[info]\nCache directory cleaned successfully");
         }
 
         Commands::Build(_build_args) => {
-            if let Err(e) = build_managed_project(_build_args) {
-                eprintln!("[ERROR]\n{}", e);
-                std::process::exit(1);
-            }
+            build_managed_project(_build_args)?;
+            println!("[info]\nProject built successfully");
         }
+    }
+    Ok(())
+}
+
+// ==========================================
+// ================== MAIN ==================
+// ==========================================
+
+fn main() {
+    if let Err(e) = run_csalt() {
+        eprintln!("\x1b[1;31m[ERROR]\x1b[0m\n{}", e);
+        std::process::exit(1);
     }
 }

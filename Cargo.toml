@@ -5,16 +5,18 @@ edition = "2024"
 
 [dependencies]
 dirs = "6.0"
+anyhow = "1.0"
 toml = { version = "1.1" }
 serde_json = { version = "1.0" }
 
 clap = { version = "4.4", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
 
-self_update = { version = "0.44", optional = true }
 sha2 = { version = "0.11", optional = true }
+self_update = { version = "0.44", optional = true }
 tree-sitter = { version = "0.26", optional = true }
 tree-sitter-c = { version = "0.24", optional = true }
+
 reqwest = { version = "0.11", features = ["blocking"], optional = true }
 
 [features]

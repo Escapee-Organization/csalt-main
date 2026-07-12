@@ -15,7 +15,7 @@ use std::io::{Error, ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-pub fn ensure_cache_dir() -> Result<PathBuf, Error> {
+pub fn ensure_cache_dir() -> anyhow::Result<PathBuf> {
     let home = home_dir().ok_or(Error::new(
         ErrorKind::NotFound,
         "[ERROR]\nhome directory not found",
@@ -25,15 +25,15 @@ pub fn ensure_cache_dir() -> Result<PathBuf, Error> {
     Ok(cache_dir)
 }
 
-pub fn verify_workspace(base_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+pub fn verify_workspace(base_dir: &Path) -> anyhow::Result<()> {
     let manifest_path = base_dir.join("Salt.toml");
     if !manifest_path.exists() {
-        return Err("Fatal: Not a valid C-Salt project workspace (missing Salt.toml)".into());
+        anyhow::bail!("Invalid C-Salt project workspace (missing Salt.toml)");
     }
     Ok(())
 }
 
-pub fn clean_cache_dir() -> Result<(), Box<dyn std::error::Error>> {
+pub fn clean_cache_dir() -> anyhow::Result<()> {
     let base_dir = std::env::current_dir()?;
     verify_workspace(&base_dir)?;
     let cache_dir = base_dir.join(".csalt");
@@ -46,10 +46,7 @@ pub fn clean_cache_dir() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 // TODO: Consider using `Salt.lock` to exclude unnecessary file copying
-pub fn copy_project_files(
-    base_dir: &Path,
-    cache_dir: &Path,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn copy_project_files(base_dir: &Path, cache_dir: &Path) -> anyhow::Result<()> {
     let excluded_dirs = [".csalt", ".git", "build"];
     let excluded_files = ["Salt.toml", "Salt.lock", ".gitignore"];
 
@@ -91,7 +88,7 @@ pub fn copy_project_files(
     Ok(())
 }
 
-pub fn new_project(args: &NewArgs) -> Result<(), Box<dyn std::error::Error>> {
+pub fn new_project(args: &NewArgs) -> anyhow::Result<()> {
     let path = Path::new(&args.dir.as_deref().unwrap_or(".")).join(&args.name);
     fs::create_dir_all(&path)?;
     init_project(&path, args.full, args.stealth, args.init_git)?;
@@ -99,12 +96,7 @@ pub fn new_project(args: &NewArgs) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-pub fn init_project(
-    dir: &Path,
-    full: bool,
-    stealth: bool,
-    init_git: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn init_project(dir: &Path, full: bool, stealth: bool, init_git: bool) -> anyhow::Result<()> {
     fs::create_dir_all(dir)?;
 
     let project_name = dir
@@ -159,7 +151,7 @@ pub fn init_project(
                 println!("Salt.lock already exists: {}", e);
             }
             Err(e) => {
-                return Err(Box::new(e));
+                anyhow::bail!(e);
             }
         }
     }
@@ -205,7 +197,7 @@ pub fn init_project(
                 println!("main.c already exists");
             }
             Err(e) => {
-                return Err(Box::new(e));
+                anyhow::bail!(e);
             }
         }
     }
