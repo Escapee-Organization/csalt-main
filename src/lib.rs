@@ -396,12 +396,12 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
 
                 match unit.kind {
                     UnitKinds::Bin => {
-                        target_compiler.arg(format!("/Fe:{}", output_executable.to_str().unwrap()));
+                        target_compiler.arg(format!("/Fe:{}", output_executable.to_string_lossy()));
 
                         // --- DEBUG ---
                         if debug_on {
                             debug_output_text.push_str(
-                                format!("/Fe:{}", output_executable.to_str().unwrap()).as_str(),
+                                format!("/Fe:{}", output_executable.to_string_lossy()).as_str(),
                             );
                         }
                     }
@@ -409,12 +409,12 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                         let out_dyn = cache_dir.join(format!("{}.dll", unit.name));
                         target_compiler
                             .arg("/LD")
-                            .arg(format!("/Fe:{}", out_dyn.to_str().unwrap()));
+                            .arg(format!("/Fe:{}", out_dyn.to_string_lossy()));
 
                         // --- DEBUG ---
                         if debug_on {
                             debug_output_text.push_str(
-                                format!("/LD /Fe:{}", out_dyn.to_str().unwrap()).as_str(),
+                                format!("/LD /Fe:{}", out_dyn.to_string_lossy()).as_str(),
                             );
                         }
                     }
@@ -464,7 +464,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
 
             // --- DEBUG ---
             if debug_on {
-                debug_output_text.push_str(format!(" {}", relative_src.to_str().unwrap()).as_str());
+                debug_output_text.push_str(format!(" {}", relative_src.to_string_lossy()).as_str());
             }
         }
 
@@ -523,8 +523,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                         "/OUT:{}",
                         cache_dir
                             .join(format!("{}.lib", unit.name))
-                            .to_str()
-                            .unwrap()
+                            .to_string_lossy()
                     ));
 
                     // --- DEBUG ---
@@ -534,8 +533,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                                 "lib /OUT:{}",
                                 cache_dir
                                     .join(format!("{}.lib", unit.name))
-                                    .to_str()
-                                    .unwrap()
+                                    .to_string_lossy()
                             )
                             .as_str(),
                         );
@@ -591,7 +589,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
         if !status.success() {
             anyhow::bail!(
                 "Failed to run executable: {}",
-                out_bin_dir.to_str().unwrap()
+                out_bin_dir.to_string_lossy()
             );
         }
     }
