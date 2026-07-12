@@ -382,8 +382,6 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
             }
             CompilerBackend::Msvc | CompilerBackend::ClangCl => {
                 match lock.manifest.build.edition {
-                    CEditions::C89 => {}
-                    CEditions::C99 => {}
                     CEditions::C11 => {
                         target_compiler.arg("/std:c11");
                     }
@@ -613,13 +611,17 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
 
     let lock = load_or_init_lock(&current_toml)?;
     emit_project(&base_dir, &cache_dir)?;
-    let build_dir = base_dir
-        .join(if let Some(build_dir) = &lock.manifest.build.build_dir {
-            build_dir.clone()
-        } else {
-            PathBuf::from("build")
-        })
-        .canonicalize()?;
+    let mut build_dir = base_dir.join(
+        &lock
+            .manifest
+            .build
+            .build_dir
+            .as_ref()
+            .map(|d| d.as_path())
+            .unwrap_or(Path::new("build")),
+    );
+    fs::create_dir_all(&build_dir)?;
+    build_dir = build_dir.canonicalize()?;
 
     let backend = if let Some(backend) = &build_args.backend {
         BuildSystems::from_string(backend)?
