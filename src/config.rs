@@ -60,10 +60,10 @@ impl CEditions {
 }
 
 impl BuildSystems {
-    pub fn from_string(s: &str) -> Result<Self, &'static str> {
-        match s {
+    pub fn from_string(s: &str) -> anyhow::Result<Self> {
+        match s.to_lowercase().as_str() {
             "cmake" => Ok(Self::CMake),
-            _ => Err("unknown build system"),
+            _ => anyhow::bail!("unknown build system"),
         }
     }
 
@@ -74,21 +74,19 @@ impl BuildSystems {
     }
 
     pub fn generate_command(&self) -> Command {
-        match self {
-            Self::CMake => Command::new("cmake"),
-        }
+        Command::new(self.to_string())
     }
 }
 
 impl CompilerBackend {
-    pub fn from_string(s: &str) -> Result<Self, &'static str> {
-        match s {
+    pub fn from_string(s: &str) -> anyhow::Result<Self> {
+        match s.to_lowercase().as_str() {
             "clang" => Ok(Self::Clang),
             "gcc" => Ok(Self::Gcc),
             "zig" => Ok(Self::Zig),
             "cl" => Ok(Self::Msvc),
             "clang-cl" => Ok(Self::ClangCl),
-            _ => Err("unknown backend"),
+            _ => anyhow::bail!("unknown backend"),
         }
     }
 
@@ -103,13 +101,7 @@ impl CompilerBackend {
     }
 
     pub fn generate_command(&self) -> Command {
-        match self {
-            Self::Clang => Command::new("clang"),
-            Self::Gcc => Command::new("gcc"),
-            Self::Zig => Command::new("zig"),
-            Self::Msvc => Command::new("cl"),
-            Self::ClangCl => Command::new("clang-cl"),
-        }
+        Command::new(self.to_string())
     }
 }
 
@@ -160,14 +152,14 @@ pub struct SaltToml {
 
 // ------------------ FUNCTIONS ------------------
 impl SaltToml {
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> anyhow::Result<()> {
         // 1. Ensure the package name isn't blank
         if self.package.name.trim().is_empty() {
-            return Err("Package name cannot be empty in Salt.toml".into());
+            anyhow::bail!("Package name cannot be empty in Salt.toml");
         }
 
         if self.unit.is_empty() {
-            return Err("At least one unit must be defined in Salt.toml".into());
+            anyhow::bail!("At least one unit must be defined in Salt.toml");
         }
 
         // 2. Verify target definitions aren't broken and are in the correct order
@@ -181,34 +173,34 @@ impl SaltToml {
 
         for target in &self.unit {
             if target.name.trim().is_empty() {
-                return Err(format!("Unit name cannot be empty in Salt.toml"));
+                anyhow::bail!("Unit name cannot be empty in Salt.toml");
             }
             if declared_libs.contains(target.name.trim()) {
-                return Err(format!("Duplicate unit name found: '{}'", target.name));
+                anyhow::bail!("Duplicate unit name found: '{}'", target.name);
             }
-            if !target.main.exists() {
-                return Err("Every [[unit]] bin target must specify a 'main' entry file".into());
-            }
-            if !(target.main.ends_with(".c") || target.main.ends_with(".csal")) {
-                return Err(format!(
+
+            let extension = target.main.extension().and_then(|e| e.to_str());
+            if !(extension == Some("c") || extension == Some("csal")) {
+                anyhow::bail!(
                     "The main target '{}' must be a valid C source file (.c or .csal)",
                     target.main.to_string_lossy()
-                ));
+                );
             }
             if target.src.is_empty() {
-                return Err(format!(
+                anyhow::bail!(
                     "Unit '{}' must specify at least one source file or directory",
                     target.name
-                ));
+                );
             }
 
             match target.kind {
                 UnitKinds::Lib | UnitKinds::Dyn => {
                     if seen_bin {
-                        return Err(format!(
+                        anyhow::bail!(
                             "The {:?} unit '{}' must come before Bin targets",
-                            target.kind, target.name
-                        ));
+                            target.kind,
+                            target.name
+                        );
                     }
 
                     declared_libs.insert(target.name.trim().to_string());
@@ -221,7 +213,7 @@ impl SaltToml {
             if let Some(deps) = &target.deps {
                 for dep in deps {
                     if !declared_libs.contains(dep.trim()) {
-                        return Err(format!("Dependency '{}' is not declared before use", dep));
+                        anyhow::bail!("Dependency '{}' is not declared before use", dep);
                     }
                 }
             }
@@ -229,10 +221,7 @@ impl SaltToml {
             if let Some(includes) = &target.include {
                 for include in includes {
                     if include.is_file() {
-                        return Err(format!(
-                            "Include '{}' is a file, not a directory",
-                            include.display()
-                        ));
+                        anyhow::bail!("Include '{}' is a file, not a directory", include.display());
                     }
                 }
             }
@@ -241,13 +230,13 @@ impl SaltToml {
         // 3. Validate build system and compiler
         if self.build.edition == CEditions::C89 {
             if self.build.compiler == CompilerBackend::Msvc {
-                return Err("C89 is not supported with MSVC".to_string());
+                anyhow::bail!("C89 is not supported with MSVC");
             }
         }
 
         if self.build.build_sys == BuildSystems::CMake {
-            if self.build.build_sys_ver != "3.15" || self.build.build_sys_ver != "3.28" {
-                return Err("CMake version must be a baseline/milestone version".to_string());
+            if self.build.build_sys_ver != "3.15" && self.build.build_sys_ver != "3.28" {
+                anyhow::bail!("CMake version must be a baseline/milestone version");
             }
         }
 

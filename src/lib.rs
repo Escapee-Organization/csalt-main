@@ -4,11 +4,12 @@
 
 use crate::cli::{BuildArgs, CompileArgs};
 use crate::config::{BuildSystems, CEditions, CompilerBackend, SaltLock, SaltToml, UnitKinds};
+use anyhow::Context;
 use serde_json;
 #[cfg(feature = "experimental")]
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
-use std::io::{Error, ErrorKind, Write};
+use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::{collections, fs};
@@ -41,7 +42,7 @@ pub enum BuildMode {
 
 // -------------------- FUNCTIONS --------------------
 
-fn verify_command(command_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn verify_command(command_name: &str) -> anyhow::Result<()> {
     match Command::new(command_name).spawn() {
         Ok(mut child) => {
             // Kill the child! Kill the child!
@@ -51,10 +52,7 @@ fn verify_command(command_name: &str) -> Result<(), Box<dyn std::error::Error>> 
         }
         Err(e) if e.kind() == ErrorKind::NotFound => {
             // The binary is definitively missing from the system
-            Err(Box::new(Error::new(
-                ErrorKind::NotFound,
-                format!("Compiler '{}' not found", command_name),
-            )))
+            Err(anyhow::anyhow!("Compiler '{}' not found", command_name))
         }
         Err(_) => {
             // It exists, but we ran into a permission/OS blockade (which counts as existing!)
@@ -90,25 +88,36 @@ fn compute_hash(file_string: &str) -> String {
         .collect::<String>()
 }
 
-fn load_or_init_lock(current_toml: &SaltToml) -> Result<SaltLock, Box<dyn std::error::Error>> {
+fn load_or_init_lock(current_toml: &SaltToml) -> anyhow::Result<SaltLock> {
+    // NOTE: Boilerplate right now is kept to avoid function abstraction hell
     let lock_path = Path::new("Salt.lock");
-    if lock_path.exists() {
-        if let Ok(contents) = fs::read_to_string(lock_path) {
-            if !contents.trim().is_empty() {
-                if let Ok(lock) = serde_json::from_str::<SaltLock>(&contents) {
-                    if lock.manifest == *current_toml {
-                        return Ok(lock);
-                    }
-                }
-            }
-        }
+    if !lock_path.is_file() {
+        return Ok(SaltLock {
+            lock_version: LOCK_VERSION.to_string(),
+            manifest: current_toml.clone(),
+            files: std::collections::BTreeMap::new(),
+        });
     }
 
-    Ok(SaltLock {
-        lock_version: LOCK_VERSION.to_string(),
-        manifest: current_toml.clone(),
-        files: std::collections::BTreeMap::new(),
-    })
+    let contents = fs::read_to_string(lock_path)?;
+    if contents.trim().is_empty() {
+        return Ok(SaltLock {
+            lock_version: LOCK_VERSION.to_string(),
+            manifest: current_toml.clone(),
+            files: std::collections::BTreeMap::new(),
+        });
+    }
+
+    let lock =
+        serde_json::from_str::<SaltLock>(&contents).context("`Salt.lock` contains invalid JSON")?;
+    if lock.manifest != *current_toml {
+        return Ok(SaltLock {
+            lock_version: LOCK_VERSION.to_string(),
+            manifest: current_toml.clone(),
+            files: std::collections::BTreeMap::new(),
+        });
+    }
+    Ok(lock)
 }
 
 #[cfg(feature = "experimental")]
@@ -129,16 +138,13 @@ pub fn sync_workspace(
     Ok(updated_files)
 }
 
-pub fn emit_project(base_dir: &Path, cache_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+pub fn emit_project(base_dir: &Path, cache_dir: &Path) -> anyhow::Result<()> {
     fs_utils::verify_workspace(&base_dir)?;
     fs_utils::copy_project_files(&base_dir, &cache_dir)?;
     Ok(())
 }
 
-pub fn prepare_build_plan(
-    lock: &SaltLock,
-    base_dir: &Path,
-) -> Result<Vec<PreparedUnit>, Box<dyn std::error::Error>> {
+pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Vec<PreparedUnit>> {
     let mut plan = Vec::new();
 
     let mut known_units: HashMap<String, UnitKinds> = collections::HashMap::new();
@@ -150,6 +156,20 @@ pub fn prepare_build_plan(
         let mut gathered_src_files = Vec::new();
 
         for src_path in &unit.src {
+            let main_absolute = if unit.main.is_absolute() {
+                unit.main.clone()
+            } else {
+                base_dir.join(&unit.main)
+            };
+
+            if !main_absolute.is_file() {
+                anyhow::bail!(
+                    "Main entry file '{}' does not exist for unit '{}'",
+                    main_absolute.to_string_lossy(),
+                    unit.name
+                );
+            }
+
             let target = if src_path.is_absolute() {
                 src_path.clone()
             } else {
@@ -168,8 +188,10 @@ pub fn prepare_build_plan(
                     }
                 }
             } else {
-                return Err(
-                    format!("File not found for sources: {}", target.to_string_lossy()).into(),
+                anyhow::bail!(
+                    "File '{}' not found for sources in unit '{}'",
+                    target.to_string_lossy(),
+                    unit.name
                 );
             }
         }
@@ -189,11 +211,11 @@ pub fn prepare_build_plan(
                 if target.exists() {
                     gathered_include_files.push(target);
                 } else {
-                    return Err(format!(
-                        "File not found for include: {}",
-                        target.to_string_lossy()
-                    )
-                    .into());
+                    anyhow::bail!(
+                        "File '{}' not found for include in unit '{}'",
+                        target.to_string_lossy(),
+                        unit.name
+                    );
                 }
             }
         }
@@ -230,7 +252,7 @@ pub fn prepare_build_plan(
  *  4. Link the transpiled code with the backend compiler
  *  5. Output the compiled binary to build/
  */
-pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error::Error>> {
+pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
     println!("[info]\nCompiling project...");
 
     let base_dir = std::env::current_dir()?;
@@ -255,7 +277,7 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
         actual_compiler.current_dir(&cache_dir);
         let status = actual_compiler.status()?;
         if !status.success() {
-            return Err("Failed to compile".into());
+            anyhow::bail!("Failed to compile");
         }
         return Ok(());
     }
@@ -313,13 +335,7 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
                     }
                 }
 
-                match lock.manifest.build.edition {
-                    CEditions::C89 => target_compiler.arg("-std=c89"),
-                    CEditions::C99 => target_compiler.arg("-std=c99"),
-                    CEditions::C11 => target_compiler.arg("-std=c11"),
-                    CEditions::C17 => target_compiler.arg("-std=c17"),
-                    CEditions::C23 => target_compiler.arg("-std=c23"),
-                };
+                target_compiler.arg(format!("-std={}", lock.manifest.build.edition.to_string()));
 
                 match unit.kind {
                     UnitKinds::Bin => {
@@ -366,8 +382,6 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
             }
             CompilerBackend::Msvc | CompilerBackend::ClangCl => {
                 match lock.manifest.build.edition {
-                    CEditions::C89 => {}
-                    CEditions::C99 => {}
                     CEditions::C11 => {
                         target_compiler.arg("/std:c11");
                     }
@@ -377,16 +391,17 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
                     CEditions::C23 => {
                         target_compiler.arg("/std:clatest");
                     }
+                    _ => {} // Unsupported editions are ignored
                 };
 
                 match unit.kind {
                     UnitKinds::Bin => {
-                        target_compiler.arg(format!("/Fe:{}", output_executable.to_str().unwrap()));
+                        target_compiler.arg(format!("/Fe:{}", output_executable.to_string_lossy()));
 
                         // --- DEBUG ---
                         if debug_on {
                             debug_output_text.push_str(
-                                format!("/Fe:{}", output_executable.to_str().unwrap()).as_str(),
+                                format!("/Fe:{}", output_executable.to_string_lossy()).as_str(),
                             );
                         }
                     }
@@ -394,12 +409,12 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
                         let out_dyn = cache_dir.join(format!("{}.dll", unit.name));
                         target_compiler
                             .arg("/LD")
-                            .arg(format!("/Fe:{}", out_dyn.to_str().unwrap()));
+                            .arg(format!("/Fe:{}", out_dyn.to_string_lossy()));
 
                         // --- DEBUG ---
                         if debug_on {
                             debug_output_text.push_str(
-                                format!("/LD /Fe:{}", out_dyn.to_str().unwrap()).as_str(),
+                                format!("/LD /Fe:{}", out_dyn.to_string_lossy()).as_str(),
                             );
                         }
                     }
@@ -449,7 +464,7 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
 
             // --- DEBUG ---
             if debug_on {
-                debug_output_text.push_str(format!(" {}", relative_src.to_str().unwrap()).as_str());
+                debug_output_text.push_str(format!(" {}", relative_src.to_string_lossy()).as_str());
             }
         }
 
@@ -491,7 +506,7 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
 
         let status = target_compiler.current_dir(&cache_dir).status()?;
         if !status.success() {
-            return Err(format!("Failed to compile unit '{}'", unit.name).into());
+            anyhow::bail!("Failed to compile unit '{}'", unit.name);
         }
 
         // If this unit was a Static Library, we must pack the resulting object files into a .a container
@@ -508,8 +523,7 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
                         "/OUT:{}",
                         cache_dir
                             .join(format!("{}.lib", unit.name))
-                            .to_str()
-                            .unwrap()
+                            .to_string_lossy()
                     ));
 
                     // --- DEBUG ---
@@ -519,8 +533,7 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
                                 "lib /OUT:{}",
                                 cache_dir
                                     .join(format!("{}.lib", unit.name))
-                                    .to_str()
-                                    .unwrap()
+                                    .to_string_lossy()
                             )
                             .as_str(),
                         );
@@ -550,11 +563,10 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
 
             let ar_status = ar_command.current_dir(&cache_dir).status()?;
             if !ar_status.success() {
-                return Err(format!(
+                anyhow::bail!(
                     "Failed to execute static library archiver on unit: {}",
                     unit.name
-                )
-                .into());
+                );
             }
         }
 
@@ -575,18 +587,17 @@ pub fn build_manual_project(args: &CompileArgs) -> Result<(), Box<dyn std::error
         let mut run_command = std::process::Command::new(&out_bin_dir);
         let status = run_command.status()?;
         if !status.success() {
-            return Err(format!(
+            anyhow::bail!(
                 "Failed to run executable: {}",
-                out_bin_dir.to_str().unwrap()
-            )
-            .into());
+                out_bin_dir.to_string_lossy()
+            );
         }
     }
 
     Ok(())
 }
 
-pub fn build_managed_project(build_args: &BuildArgs) -> Result<(), Box<dyn std::error::Error>> {
+pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
     println!("[info] Building project...");
 
     let base_dir = std::env::current_dir()?;
@@ -598,13 +609,17 @@ pub fn build_managed_project(build_args: &BuildArgs) -> Result<(), Box<dyn std::
 
     let lock = load_or_init_lock(&current_toml)?;
     emit_project(&base_dir, &cache_dir)?;
-    let build_dir = base_dir
-        .join(if let Some(build_dir) = &lock.manifest.build.build_dir {
-            build_dir.clone()
-        } else {
-            PathBuf::from("build")
-        })
-        .canonicalize()?;
+    let mut build_dir = base_dir.join(
+        &lock
+            .manifest
+            .build
+            .build_dir
+            .as_ref()
+            .map(|d| d.as_path())
+            .unwrap_or(Path::new("build")),
+    );
+    fs::create_dir_all(&build_dir)?;
+    build_dir = build_dir.canonicalize()?;
 
     let backend = if let Some(backend) = &build_args.backend {
         BuildSystems::from_string(backend)?
@@ -619,7 +634,7 @@ pub fn build_managed_project(build_args: &BuildArgs) -> Result<(), Box<dyn std::
             .current_dir(&base_dir);
         let status = target_build.status()?;
         if !status.success() {
-            return Err("Failed to build project".into());
+            anyhow::bail!("Failed to build project");
         }
 
         return Ok(());
@@ -636,6 +651,7 @@ pub fn build_managed_project(build_args: &BuildArgs) -> Result<(), Box<dyn std::
 
             if mode == BuildMode::Managed {
                 println!("[info] Manual CMakeLists.txt detected. Running in Managed Mode...");
+                // NOTE: Consider using the compiler option to choose which one to search for first
 
                 let mut cmake_configure = std::process::Command::new("cmake");
                 cmake_configure
@@ -645,7 +661,7 @@ pub fn build_managed_project(build_args: &BuildArgs) -> Result<(), Box<dyn std::
 
                 let config_status = cmake_configure.status()?;
                 if !config_status.success() {
-                    return Err("CMake configuration failed".into());
+                    anyhow::bail!("CMake configuration failed");
                 }
 
                 let mut cmake_build = std::process::Command::new("cmake");
@@ -656,7 +672,7 @@ pub fn build_managed_project(build_args: &BuildArgs) -> Result<(), Box<dyn std::
 
                 let build_status = cmake_build.status()?;
                 if !build_status.success() {
-                    return Err("CMake build step failed".into());
+                    anyhow::bail!("CMake build step failed");
                 }
 
                 println!("[info] Managed Mode build finished successfully!");
@@ -760,7 +776,7 @@ pub fn build_managed_project(build_args: &BuildArgs) -> Result<(), Box<dyn std::
                             .arg("-B")
                             .arg(&build_dir);
                         if !cmake_configure.status()?.success() {
-                            return Err("CMake configuration failed in Fresh Mode".into());
+                            anyhow::bail!("CMake configuration failed in Fresh Mode");
                         }
 
                         let mut cmake_build = std::process::Command::new("cmake");
@@ -769,7 +785,7 @@ pub fn build_managed_project(build_args: &BuildArgs) -> Result<(), Box<dyn std::
                             .arg("--build")
                             .arg(&build_dir);
                         if !cmake_build.status()?.success() {
-                            return Err("CMake build step failed in Fresh Mode".into());
+                            anyhow::bail!("CMake build step failed in Fresh Mode");
                         }
 
                         println!("[info] Fresh Mode build finished successfully!");
