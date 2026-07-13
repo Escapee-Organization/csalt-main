@@ -21,7 +21,7 @@ pub fn ensure_cache_dir() -> anyhow::Result<PathBuf> {
         "[ERROR]\nhome directory not found",
     ))?;
     let cache_dir = home.join(".csalt");
-    std::fs::create_dir_all(&cache_dir).map_err(|e| Error::new(ErrorKind::Other, e))?;
+    std::fs::create_dir_all(&cache_dir).map_err(Error::other)?;
     Ok(cache_dir)
 }
 
@@ -41,7 +41,7 @@ pub fn clean_cache_dir() -> anyhow::Result<()> {
         fs::remove_dir_all(&cache_dir)?;
     }
 
-    fs::create_dir_all(cache_dir).map_err(|e| Error::new(ErrorKind::Other, e))?;
+    fs::create_dir_all(cache_dir).map_err(Error::other)?;
     Ok(())
 }
 
@@ -58,21 +58,22 @@ pub fn copy_project_files(base_dir: &Path, cache_dir: &Path) -> anyhow::Result<(
 
             let is_dir = entry.file_type()?.is_dir();
             let file_name = entry.file_name();
-            if let Some(name) = file_name.to_str() {
-                if current_dir == base_dir {
-                    if is_dir && excluded_dirs.contains(&name) {
-                        continue;
-                    }
+            if let Some(name) = file_name.to_str()
+                && current_dir == base_dir
+            {
+                if is_dir && excluded_dirs.contains(&name) {
+                    continue;
+                }
 
-                    if !is_dir && excluded_files.contains(&name) {
-                        continue;
-                    }
+                if !is_dir && excluded_files.contains(&name) {
+                    continue;
                 }
             }
+
             let path = entry.path();
             let relative_path = path
                 .as_path()
-                .strip_prefix(&base_dir)
+                .strip_prefix(base_dir)
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
             let target_path = cache_dir.join(relative_path);
 
@@ -144,9 +145,10 @@ pub fn init_project(dir: &Path, full: bool, stealth: bool, init_git: bool) -> an
         match OpenOptions::new()
             .write(true)
             .create(true)
+            .truncate(true)
             .open(dir.join("Salt.lock"))
         {
-            Ok(mut lock_file) => writeln!(lock_file, "")?,
+            Ok(mut lock_file) => writeln!(lock_file)?,
             Err(e) if e.kind() == ErrorKind::AlreadyExists => {
                 println!("Salt.lock already exists: {}", e);
             }
@@ -163,19 +165,16 @@ pub fn init_project(dir: &Path, full: bool, stealth: bool, init_git: bool) -> an
     if full {
         fs::create_dir_all(dir.join("tests"))?;
         fs::create_dir_all(dir.join("vendor"))?;
-        match fs::exists(dir.join("README.md")) {
-            Ok(false) => {
-                let mut read_me = OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .open(dir.join("README.md"))?;
-                writeln!(
-                    read_me,
-                    "# {}\n",
-                    dir.file_name().and_then(|n| n.to_str()).unwrap_or("")
-                )?;
-            }
-            _ => {}
+        if let Ok(false) = fs::exists(dir.join("README.md")) {
+            let mut read_me = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(dir.join("README.md"))?;
+            writeln!(
+                read_me,
+                "# {}\n",
+                dir.file_name().and_then(|n| n.to_str()).unwrap_or("")
+            )?;
         }
     }
 
@@ -187,7 +186,7 @@ pub fn init_project(dir: &Path, full: bool, stealth: bool, init_git: bool) -> an
         {
             Ok(mut main_file) => {
                 writeln!(main_file, "#include <stdio.h>")?;
-                writeln!(main_file, "")?;
+                writeln!(main_file)?;
                 writeln!(main_file, "int main() {{")?;
                 writeln!(main_file, "    printf(\"Hello, World!\\n\");")?;
                 writeln!(main_file, "    return 0;")?;
@@ -202,26 +201,23 @@ pub fn init_project(dir: &Path, full: bool, stealth: bool, init_git: bool) -> an
         }
     }
 
-    match fs::exists(dir.join(".gitignore")) {
-        Ok(false) => {
-            let mut gitignore = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(dir.join(".gitignore"))?;
-            writeln!(gitignore, "build/")?;
-            writeln!(gitignore, ".csalt/")?;
-            if stealth {
-                writeln!(gitignore, "Salt.toml")?;
-                writeln!(gitignore, "Salt.lock")?;
-            }
+    if let Ok(false) = fs::exists(dir.join(".gitignore")) {
+        let mut gitignore = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(dir.join(".gitignore"))?;
+        writeln!(gitignore, "build/")?;
+        writeln!(gitignore, ".csalt/")?;
+        if stealth {
+            writeln!(gitignore, "Salt.toml")?;
+            writeln!(gitignore, "Salt.lock")?;
         }
-        _ => {}
     }
 
     if init_git {
         verify_command("git")?;
         Command::new("git")
-            .current_dir(&dir)
+            .current_dir(dir)
             .args(["init", "--initial-branch=main"])
             .status()
             .ok();

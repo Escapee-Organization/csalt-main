@@ -5,7 +5,6 @@
 use crate::cli::{BuildArgs, CompileArgs};
 use crate::config::{BuildSystems, CEditions, CompilerBackend, SaltLock, SaltToml, UnitKinds};
 use anyhow::Context;
-use serde_json;
 #[cfg(feature = "experimental")]
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -139,8 +138,8 @@ pub fn sync_workspace(
 }
 
 pub fn emit_project(base_dir: &Path, cache_dir: &Path) -> anyhow::Result<()> {
-    fs_utils::verify_workspace(&base_dir)?;
-    fs_utils::copy_project_files(&base_dir, &cache_dir)?;
+    fs_utils::verify_workspace(base_dir)?;
+    fs_utils::copy_project_files(base_dir, cache_dir)?;
     Ok(())
 }
 
@@ -182,7 +181,7 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
                 } else if target.is_dir() {
                     for entry in fs::read_dir(target)? {
                         let path = entry?.path();
-                        if path.is_file() && path.extension().map_or(false, |ext| ext == "c") {
+                        if path.is_file() && path.extension().is_some_and(|ext| ext == "c") {
                             gathered_src_files.push(path);
                         }
                     }
@@ -302,7 +301,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
         lock.manifest.build.compiler.clone()
     };
 
-    verify_command(&compiler_backend.to_string())?;
+    verify_command(compiler_backend.to_string())?;
     let build_plan = prepare_build_plan(&lock, &base_dir)?;
     let debug_on = false; // Disable debug output from existing, but keep the code so it can be enabled later
 
@@ -354,7 +353,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
         let mut debug_output_text = String::new();
         if debug_on {
             debug_output_text.push_str("[DEBUG COMMAND] ");
-            debug_output_text.push_str(&compiler_backend.to_string());
+            debug_output_text.push_str(compiler_backend.to_string());
         }
 
         match compiler_backend {
@@ -621,12 +620,10 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
     let lock = load_or_init_lock(&current_toml)?;
     emit_project(&base_dir, &cache_dir)?;
     let mut build_dir = base_dir.join(
-        &lock
-            .manifest
+        lock.manifest
             .build
             .build_dir
-            .as_ref()
-            .map(|d| d.as_path())
+            .as_deref()
             .unwrap_or(Path::new("build")),
     );
     fs::create_dir_all(&build_dir)?;
