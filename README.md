@@ -1,6 +1,15 @@
-# C-Salt
+<div align="center">
+  <picture>
+    <source srcset="https://raw.githubusercontent.com/Escapee-Organization/csalt-artwork/main/logos/csalt-original-official-logo.png" type="image/png">
+    <img src="https://raw.githubusercontent.com/Escapee-Organization/csalt-artwork/main/logos/csalt-original-official-logo.png" alt="C-Salt CLI Logo" width="300" height="300">
+  </picture>
+  <h1>C-Salt</h1>
+</div>
 
-> **"Drop your C files and it just works."** A Cargo-inspired, declarative build driver and workspace orchestrator designed to eliminate manual compilation headaches while not compromising control.
+<p align="center">
+  <strong>"Drop your C files and it just works."</strong><br><br> A Cargo-inspired, declarative build driver and workspace orchestrator designed to eliminate manual compilation headaches while not compromising absolute control over your repo.
+</p>
+
 <!-- NOTE: Use shields.io later, when you have the time to figure it out -->
 
 ## Table of Contents
