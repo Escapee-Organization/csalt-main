@@ -577,6 +577,8 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                     unit.name
                 );
             }
+
+            fs::copy(cache_dir.join(lib_name.clone()), out_bin_dir.join(lib_name))?;
         }
 
         // --- DEBUG ---
