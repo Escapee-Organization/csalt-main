@@ -288,6 +288,12 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
         None => Path::new("build/"),
     });
     fs::create_dir_all(&out_bin_dir)?;
+    let in_bin_dir = cache_dir.join(
+        out_bin_dir
+            .strip_prefix(&base_dir)
+            .context("Failed to create cache mirror of build directory")?,
+    );
+    fs::create_dir_all(&in_bin_dir)?;
 
     // Read in the target compiler from `Salt.lock`. CLI flag overrides
     let compiler_backend: CompilerBackend = if let Some(backend) = &args.backend {
@@ -316,6 +322,33 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
             CompilerBackend::Gcc | CompilerBackend::Zig | CompilerBackend::Clang => "o",
             CompilerBackend::Msvc | CompilerBackend::ClangCl => "obj",
         };
+        let lib_ext = match compiler_backend {
+            CompilerBackend::Msvc | CompilerBackend::ClangCl => "lib",
+            CompilerBackend::Clang | CompilerBackend::Gcc | CompilerBackend::Zig => "a",
+        };
+        let lib_name = match compiler_backend {
+            CompilerBackend::Msvc | CompilerBackend::ClangCl => {
+                format!("{}.{}", unit.name, lib_ext)
+            }
+            CompilerBackend::Clang | CompilerBackend::Gcc | CompilerBackend::Zig => {
+                format!("lib{}.{}", unit.name, lib_ext)
+            }
+        };
+        let out_lib = cache_dir.join(&lib_name);
+
+        let dyn_ext = if cfg!(target_os = "windows") {
+            "dll"
+        } else if cfg!(target_os = "macos") {
+            "dylib"
+        } else {
+            "so"
+        };
+        let dyn_name = if cfg!(target_os = "windows") {
+            format!("{}.{}", unit.name, dyn_ext)
+        } else {
+            format!("lib{}.{}", unit.name, dyn_ext)
+        };
+        let out_dyn = out_bin_dir.join(&dyn_name);
 
         // --- DEBUG ---
         let mut debug_output_text = String::new();
@@ -348,14 +381,6 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                         }
                     }
                     UnitKinds::Dyn => {
-                        let dyn_ext = if cfg!(target_os = "windows") {
-                            "dll"
-                        } else if cfg!(target_os = "macos") {
-                            "dylib"
-                        } else {
-                            "so"
-                        };
-                        let out_dyn = cache_dir.join(format!("lib{}.{}", unit.name, dyn_ext));
                         target_compiler
                             .arg("-shared")
                             .arg("-fPIC")
@@ -406,7 +431,6 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                         }
                     }
                     UnitKinds::Dyn => {
-                        let out_dyn = cache_dir.join(format!("{}.dll", unit.name));
                         target_compiler
                             .arg("/LD")
                             .arg(format!("/Fe:{}", out_dyn.to_string_lossy()));
@@ -468,25 +492,11 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
             }
         }
 
-        if unit.kind == UnitKinds::Lib {
-            match compiler_backend {
-                CompilerBackend::Msvc | CompilerBackend::ClangCl => {}
-                CompilerBackend::Clang | CompilerBackend::Gcc | CompilerBackend::Zig => {
-                    if let Some(build_dir) = &lock.manifest.build.build_dir {
-                        fs::create_dir_all(cache_dir.join(build_dir))?;
-                        let mut unified_o = PathBuf::from(build_dir);
-                        unified_o.push(format!("{}.{}", unit.name, obj_ext));
-                        target_compiler.arg("-o").arg(unified_o);
-                    }
-                }
-            }
-        }
-
         for (dep_name, _dep_kind) in &unit.resolved_deps {
             // Tell the compiler to look right inside our current scratchpad dir for dependencies
             match compiler_backend {
                 CompilerBackend::Msvc | CompilerBackend::ClangCl => {
-                    target_compiler.arg(format!("{}.lib", dep_name));
+                    target_compiler.arg(format!("{}.{}", dep_name, dyn_ext));
 
                     // --- DEBUG ---
                     if debug_on {
@@ -519,12 +529,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
             let mut ar_command = match compiler_backend {
                 CompilerBackend::Msvc | CompilerBackend::ClangCl => {
                     let mut cmd = std::process::Command::new("lib");
-                    cmd.arg(format!(
-                        "/OUT:{}",
-                        cache_dir
-                            .join(format!("{}.lib", unit.name))
-                            .to_string_lossy()
-                    ));
+                    cmd.arg(format!("/OUT:{}", out_lib.to_string_lossy()));
 
                     // --- DEBUG ---
                     if debug_on {
@@ -544,7 +549,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                 CompilerBackend::Gcc | CompilerBackend::Zig | CompilerBackend::Clang => {
                     let mut cmd = std::process::Command::new("ar");
                     cmd.arg("rcs");
-                    cmd.arg(format!("lib{}.a", unit.name));
+                    cmd.arg(&lib_name);
 
                     // --- DEBUG ---
                     if debug_on {
@@ -555,10 +560,14 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                 }
             };
 
-            if let Some(build_dir) = &lock.manifest.build.build_dir {
-                let mut unified_o = cache_dir.join(build_dir);
-                unified_o.push(format!("{}.{}", unit.name, obj_ext));
-                ar_command.arg(unified_o);
+            for src_file in &unit.src {
+                let path = Path::new(src_file);
+                if let Some(file_stem) = path.file_stem() {
+                    let object_file_name = format!("{}.{}", file_stem.to_string_lossy(), obj_ext);
+
+                    let object_path = cache_dir.join(object_file_name);
+                    ar_command.arg(object_path);
+                }
             }
 
             let ar_status = ar_command.current_dir(&cache_dir).status()?;
