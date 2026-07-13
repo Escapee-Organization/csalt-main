@@ -53,13 +53,21 @@ src = ["src/"]
 **NOTE**: C-Salt is a Minimum Viable Product (MVP) in this current stage. It is not ready for production use, will change heavily, has unfinished features, and is not battle-tested against every edge case.
 
 ## Quick Start
+There are a few ways to get started with C-Salt:
 
-### Prerequisites
+### 1. Releases
+Download the latest pre-release from the [releases page](https://github.com/Escapee-Organization/csalt-main/releases).
 
-- **Cargo**: required for installing C-Salt itself.
-- **C Compiler**: `clang` or other compilers.
+### 2. Crates.io
+If you have Cargo installed, you can install C-Salt directly from [crates.io](https://crates.io/crates/csalt):
 
-### Installation
+```bash
+cargo install csalt
+```
+
+### 3. Source
+If you prefer to build from source, you can clone the repository and install it locally:
+
 ```bash
 # Clone the repository from source (use any Git client, e.g. Git Bash, GitKraken, GitHub Desktop)
 git clone https://github.com/Escapee-Organization/csalt-main.git
