@@ -7,8 +7,22 @@
 </div>
 
 <p align="center">
+  <a href="https://crates.io/crates/csalt">
+    <img src="https://img.shields.io/crates/v/csalt?style=for-the-badge" alt="Crates.io Version">
+    <img src="https://img.shields.io/crates/l/csalt?style=for-the-badge" alt="Crates.io License">
+    <img src="https://img.shields.io/crates/size/csalt?style=for-the-badge" alt="Crates.io Size">
+    <img src="https://img.shields.io/crates/dv/csalt?style=for-the-badge" alt="Crates.io Downloads (latest version)">
+  </a>
+</p>
+
+<p align="center">
+  
+</p>
+
+<p align="center">
   <strong>"Drop your C files and it just works."</strong><br><br> A Cargo-inspired, declarative build driver and workspace orchestrator designed to eliminate manual compilation headaches while not compromising absolute control over your repo.
 </p>
+
 
 <!-- NOTE: Use shields.io later, when you have the time to figure it out -->
 
