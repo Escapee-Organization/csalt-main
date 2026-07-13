@@ -228,16 +228,14 @@ impl SaltToml {
         }
 
         // 3. Validate build system and compiler
-        if self.build.edition == CEditions::C89 {
-            if self.build.compiler == CompilerBackend::Msvc {
-                anyhow::bail!("C89 is not supported with MSVC");
-            }
+        if self.build.edition == CEditions::C89 && self.build.compiler == CompilerBackend::Msvc {
+            anyhow::bail!("C89 is not supported with MSVC");
         }
 
-        if self.build.build_sys == BuildSystems::CMake {
-            if self.build.build_sys_ver != "3.15" && self.build.build_sys_ver != "3.28" {
-                anyhow::bail!("CMake version must be a baseline/milestone version");
-            }
+        if self.build.build_sys == BuildSystems::CMake
+            && (self.build.build_sys_ver != "3.15" && self.build.build_sys_ver != "3.28")
+        {
+            anyhow::bail!("CMake version must be a baseline/milestone version");
         }
 
         Ok(())
