@@ -67,7 +67,7 @@ const LOCK_VERSION: &str = "0.1.0";
 // TODO: Implement GitHub release tags and actions
 #[cfg(feature = "experimental")]
 pub fn update_csalt() -> Result<(), Box<dyn std::error::Error>> {
-    println!("[info]\nChecking for updates...");
+    println!("[info] Checking for updates...");
     self_update::backends::github::Update::configure()
         .repo_owner("Escapee-Organization")
         .repo_name("csalt-main")
@@ -76,7 +76,7 @@ pub fn update_csalt() -> Result<(), Box<dyn std::error::Error>> {
         .show_download_progress(true)
         .build()?;
 
-    println!("[info]\nUpdate completed successfully.");
+    println!("[info] Update completed successfully.");
     Ok(())
 }
 
@@ -398,7 +398,7 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
  *  5. Output the compiled binary to build/
  */
 pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
-    println!("[info]\nCompiling project...");
+    println!("[info] Compiling project...");
 
     let base_dir = match &args.path {
         Some(path) => path.canonicalize()?,

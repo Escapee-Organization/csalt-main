@@ -79,7 +79,7 @@ fn run_csalt() -> anyhow::Result<()> {
 
 fn main() {
     if let Err(e) = run_csalt() {
-        eprintln!("\x1b[1;31m[ERROR]\x1b[0m\n{}", e);
+        eprintln!("\x1b[1;31m[ERROR]\x1b[0m {}", e);
         std::process::exit(1);
     }
 }
