@@ -17,6 +17,10 @@ pub enum UnitKinds {
     Lib,
     Dyn,
     Bin,
+    /// Pre-compiled library
+    ExtLib,
+    /// Pre-compiled dynamic library
+    ExtDyn,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -194,7 +198,7 @@ impl SaltToml {
             }
 
             match target.kind {
-                UnitKinds::Lib | UnitKinds::Dyn => {
+                UnitKinds::Lib | UnitKinds::Dyn | UnitKinds::ExtLib | UnitKinds::ExtDyn => {
                     if seen_bin {
                         anyhow::bail!(
                             "The {:?} unit '{}' must come before Bin targets",

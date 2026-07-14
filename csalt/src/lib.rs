@@ -30,7 +30,9 @@ pub struct PreparedUnit {
     pub kind: UnitKinds,
     pub src: Vec<PathBuf>,
     pub include: Option<Vec<PathBuf>>,
-    pub resolved_deps: Vec<(String, UnitKinds)>,
+    pub resolved_deps: Vec<(String, UnitKinds, Option<PathBuf>)>,
+    pub compiler_flags: Vec<String>,
+    pub linker_flags: Vec<String>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -211,6 +213,29 @@ pub fn emit_project(
                         writeln!(file, "# === UNIT: dyn {} ===", unit.name)?;
                         writeln!(file, "add_library({} SHARED {})", unit.name, src_paths)?;
                     }
+                    UnitKinds::ExtLib => {
+                        writeln!(file, "# === UNIT: extlib {} ===", unit.name)?;
+                        // 1. Declare the target as an IMPORTED STATIC library
+                        writeln!(file, "add_library({} STATIC IMPORTED GLOBAL)", unit.name)?;
+                        // 2. Set the property pointing directly to the pre-compiled file path
+                        // (Assuming `src_paths` contains the single path to your .a/.lib file)
+                        writeln!(
+                            file,
+                            "set_target_properties({} PROPERTIES IMPORTED_LOCATION \"{}\")",
+                            unit.name, src_paths
+                        )?;
+                    }
+                    UnitKinds::ExtDyn => {
+                        writeln!(file, "# === UNIT: extdyn {} ===", unit.name)?;
+                        // 1. Declare the target as an IMPORTED SHARED library
+                        writeln!(file, "add_library({} SHARED IMPORTED GLOBAL)", unit.name)?;
+                        // 2. Set the property pointing directly to the pre-compiled file path
+                        writeln!(
+                            file,
+                            "set_target_properties({} PROPERTIES IMPORTED_LOCATION \"{}\")",
+                            unit.name, src_paths
+                        )?;
+                    }
                 }
                 if let Some(includes) = &unit.include {
                     for inc in includes {
@@ -229,7 +254,7 @@ pub fn emit_project(
                     writeln!(file, "# === DEPS: {} ===", &unit.name)?;
                     write!(file, "target_link_libraries({} PRIVATE ", unit.name)?;
                     let mut unit_deps = Vec::new();
-                    for (dep_name, _dep_kind) in &unit.resolved_deps {
+                    for (dep_name, _dep_kind, _dep_path) in &unit.resolved_deps {
                         unit_deps.push(dep_name.clone());
                     }
                     let dep_str = unit_deps.join(" ");
@@ -251,7 +276,7 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
     }
 
     for unit in &lock.manifest.unit {
-        let mut gathered_src_files = Vec::new();
+        let mut gathered_src_files = std::collections::BTreeSet::new();
 
         for src_path in &unit.src {
             let main_absolute = if unit.main.is_absolute() {
@@ -276,12 +301,12 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
 
             if target.exists() {
                 if target.is_file() {
-                    gathered_src_files.push(target);
+                    gathered_src_files.insert(target);
                 } else if target.is_dir() {
                     for entry in fs::read_dir(target)? {
                         let path = entry?.path();
                         if path.is_file() && path.extension().is_some_and(|ext| ext == "c") {
-                            gathered_src_files.push(path);
+                            gathered_src_files.insert(path);
                         }
                     }
                 }
@@ -296,7 +321,7 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
 
         // TODO: Refactor directory scanning into a shared path resolution engine to remove duplicate code blocks. FORGIVE ME.
 
-        let mut gathered_include_files = Vec::new();
+        let mut gathered_include_files = std::collections::BTreeSet::new();
 
         if let Some(include) = &unit.include {
             for include_path in include {
@@ -307,7 +332,7 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
                 };
 
                 if target.exists() {
-                    gathered_include_files.push(target);
+                    gathered_include_files.insert(target);
                 } else {
                     anyhow::bail!(
                         "File '{}' not found for include in unit '{}'",
@@ -322,7 +347,27 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
         if let Some(deps) = &unit.deps {
             for dep in deps {
                 if let Some(kind) = known_units.get(dep) {
-                    resolved_dependencies.push((dep.clone(), kind.clone()));
+                    let mut dep_path: Option<PathBuf> = None;
+                    if *kind == UnitKinds::ExtLib || *kind == UnitKinds::ExtDyn {
+                        if let Some(dep_unit) = lock.manifest.unit.iter().find(|u| u.name == *dep)
+                            && let Some(first_src) = dep_unit.src.first()
+                        {
+                            let target = if first_src.is_absolute() {
+                                first_src.clone()
+                            } else {
+                                base_dir.join(first_src)
+                            };
+                            dep_path = Some(target);
+                        }
+
+                        if dep_path.is_none() {
+                            anyhow::bail!(
+                                "External library unit '{}' must specify the pre-compiled binary file path in 'src'",
+                                dep
+                            );
+                        }
+                    }
+                    resolved_dependencies.push((dep.clone(), kind.clone(), dep_path));
                 }
             }
         }
@@ -330,13 +375,15 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
         plan.push(PreparedUnit {
             name: unit.name.clone(),
             kind: unit.kind.clone(),
-            src: gathered_src_files,
+            src: gathered_src_files.into_iter().collect(),
             include: if gathered_include_files.is_empty() {
                 None
             } else {
-                Some(gathered_include_files)
+                Some(gathered_include_files.into_iter().collect())
             },
             resolved_deps: resolved_dependencies,
+            compiler_flags: unit.compiler_flags.clone().unwrap_or_default(),
+            linker_flags: unit.linker_flags.clone().unwrap_or_default(),
         });
     }
 
@@ -413,6 +460,13 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
     let debug_on = false; // Disable debug output from existing, but keep the code so it can be enabled later
 
     for unit in build_plan {
+        if unit.kind == UnitKinds::ExtLib || unit.kind == UnitKinds::ExtDyn {
+            println!(
+                "[info] Skipping pre-compiled unit: {} ({:?})",
+                unit.name, unit.kind
+            );
+            continue;
+        }
         println!(
             "[info] Processing target unit: {} ({:?})",
             unit.name, unit.kind
@@ -454,7 +508,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
         } else {
             format!("lib{}.{}", unit.name, dyn_ext)
         };
-        let out_dyn = out_bin_dir.join(&dyn_name);
+        let out_dyn = cache_dir.join(&dyn_name);
 
         // --- DEBUG ---
         let mut debug_output_text = String::new();
@@ -477,9 +531,12 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                     }
                 }
 
-                target_compiler.arg(format!("-std={}", lock.manifest.build.edition.to_string()));
+                target_compiler
+                    .arg(format!("-std={}", lock.manifest.build.edition.to_string()))
+                    .args(unit.compiler_flags);
 
                 match unit.kind {
+                    UnitKinds::ExtLib | UnitKinds::ExtDyn => {}
                     UnitKinds::Bin => {
                         target_compiler.arg("-c");
 
@@ -525,6 +582,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                 };
 
                 match unit.kind {
+                    UnitKinds::ExtLib | UnitKinds::ExtDyn => {}
                     UnitKinds::Bin => {
                         target_compiler.arg(format!("/Fe:{}", output_executable.to_string_lossy()));
 
@@ -661,7 +719,10 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                 );
             }
 
-            fs::copy(cache_dir.join(lib_name.clone()), out_bin_dir.join(lib_name))?;
+            fs::copy(
+                cache_dir.join(lib_name.clone()),
+                out_bin_dir.join(&lib_name),
+            )?;
         }
 
         if unit.kind == UnitKinds::Dyn || unit.kind == UnitKinds::Bin {
@@ -688,32 +749,46 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                             .arg("-fPIC")
                             .arg("-o")
                             .arg(&out_dyn);
+                        if cfg!(target_os = "macos") {
+                            let install_name = format!("@rpath/{}", lib_name);
+                            link_command.arg("-install_name").arg(install_name);
+                        }
                     } else {
                         link_command.arg("-o").arg(&output_executable);
                     }
 
-                    link_command.arg("-L.");
+                    link_command.arg("-L.").args(unit.linker_flags);
 
-                    for (dep_name, _dep_kind) in &unit.resolved_deps {
-                        // Tell the compiler to look right inside our current scratchpad dir for dependencies
-                        match compiler_backend {
-                            CompilerBackend::Msvc | CompilerBackend::ClangCl => {
-                                link_command.arg(format!("{}.{}", dep_name, dyn_ext));
+                    for (dep_name, dep_kind, dep_path) in &unit.resolved_deps {
+                        match dep_kind {
+                            UnitKinds::Lib | UnitKinds::Dyn => match compiler_backend {
+                                CompilerBackend::Msvc | CompilerBackend::ClangCl => {
+                                    link_command.arg(format!("{}.{}", dep_name, dyn_ext));
+                                }
+                                _ => {
+                                    link_command.arg(format!("-l{}", dep_name));
+                                }
+                            },
+                            UnitKinds::ExtLib | UnitKinds::ExtDyn => {
+                                if let Some(path) = dep_path {
+                                    let clean_path = path.canonicalize()?;
+                                    link_command.arg(&clean_path);
 
-                                // --- DEBUG ---
-                                if debug_on {
-                                    debug_output_text
-                                        .push_str(format!(" {}.lib", dep_name).as_str());
+                                    if unit.kind == UnitKinds::ExtDyn && cfg!(target_os = "macos") {
+                                        link_command
+                                            .arg("-Xlinker")
+                                            .arg("-rpath")
+                                            .arg("-Xlinker")
+                                            .arg("@executable_path");
+                                    }
+                                } else {
+                                    anyhow::bail!(
+                                        "Missing pre-resolved path for external dependency: {}",
+                                        dep_name
+                                    );
                                 }
                             }
-                            _ => {
-                                link_command.arg(format!("-l{}", dep_name));
-
-                                // --- DEBUG ---
-                                if debug_on {
-                                    debug_output_text.push_str(format!(" -l{}", dep_name).as_str());
-                                }
-                            }
+                            _ => {}
                         }
                     }
                 }
@@ -723,6 +798,10 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
             let status = link_command.current_dir(&cache_dir).status()?;
             if !status.success() {
                 anyhow::bail!("Failed to link unit '{}'", unit.name);
+            }
+
+            if unit.kind == UnitKinds::Dyn {
+                fs::copy(&out_dyn, out_bin_dir.join(&dyn_name))?;
             }
         }
 
