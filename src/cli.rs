@@ -58,7 +58,7 @@ pub struct NewArgs {
     #[arg(short = 'd', long = "dir")]
     pub dir: Option<String>,
 
-    /// Full project initialization, including creating a git repository
+    /// Full project initialization, such as adding `vendor/` and `tests/`
     #[arg(short = 'f', long = "full")]
     pub full: bool,
 
