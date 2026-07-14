@@ -1,0 +1,32 @@
+[package]
+name = "csalt"
+version = "0.8.5"
+edition = "2024"
+license = "MPL-2.0"
+readme = "README.md"
+repository = "https://github.com/Escapee-Organization/csalt-main"
+description = "A Cargo-inspired, declarative build driver and workspace orchestrator designed to eliminate manual compilation headaches while not compromising absolute control over your C repo."
+
+[[bin]]
+name = "csalt"
+path = "src/main.rs"
+
+[dependencies]
+dirs = "6.0"
+anyhow = "1.0"
+toml = { version = "1.1" }
+serde_json = { version = "1.0" }
+
+clap = { version = "4.4", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+
+sha2 = { version = "0.11", optional = true }
+self_update = { version = "0.44", optional = true }
+tree-sitter = { version = "0.26", optional = true }
+tree-sitter-c = { version = "0.24", optional = true }
+
+reqwest = { version = "0.11", features = ["blocking"], optional = true }
+
+[features]
+default = []
+experimental = ["reqwest", "self_update", "tree-sitter", "tree-sitter-c", "sha2"]

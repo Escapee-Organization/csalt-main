@@ -1,2 +1,2 @@
-/target
-/salt-test
+**/target
+**/salt-test
