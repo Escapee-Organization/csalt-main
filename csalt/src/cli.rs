@@ -42,11 +42,15 @@ pub enum Commands {
 
     /// Emit and generate the project
     #[command(name = "emit")]
-    Emit,
+    Emit(EmitArgs),
 
     /// Clean the cache directory (.csalt/)
     #[command(name = "clean")]
-    Clean,
+    Clean {
+        /// Changes where the operation will be performed
+        #[arg(long = "path")]
+        path: Option<PathBuf>,
+    },
 }
 
 #[derive(Parser, Debug)]
@@ -58,7 +62,7 @@ pub struct NewArgs {
     #[arg(short = 'd', long = "dir")]
     pub dir: Option<String>,
 
-    /// Full project initialization, including creating a git repository
+    /// Full project initialization, such as adding `vendor/` and `tests/`
     #[arg(short = 'f', long = "full")]
     pub full: bool,
 
@@ -77,6 +81,10 @@ pub struct CompileArgs {
     #[arg(short = 'b', long = "backend")]
     pub backend: Option<String>,
 
+    /// Changes where the operation will be performed
+    #[arg(long = "path")]
+    pub path: Option<PathBuf>,
+
     /// Choose the mode of transpilation, such as default, in-place, and clean
     #[arg(short = 'm', long = "mode")]
     pub mode: Option<String>,
@@ -84,6 +92,10 @@ pub struct CompileArgs {
     /// Run the compiled binary after transpilation
     #[arg(short = 'r', long = "run", conflicts_with = "backend_flags")]
     pub run: bool,
+
+    /// ZIG ONLY: Specifies the target CPU architecture
+    #[arg(long = "zig-target", short = 'z')]
+    pub zig_target: Option<String>,
 
     #[cfg(feature = "experimental")]
     /// Debug mode, enables debug output
@@ -101,7 +113,23 @@ pub struct BuildArgs {
     #[arg(short = 'b', long = "backend")]
     pub backend: Option<String>,
 
+    /// Changes where the operation will be performed
+    #[arg(long = "path")]
+    pub path: Option<PathBuf>,
+
     /// Trailing parameters forwarded completely intact to the backend compiler layer
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, action = ArgAction::Append)]
     pub backend_flags: Vec<String>,
+}
+
+// NOTE: Come up with better names for these commands later
+#[derive(Parser, Debug)]
+pub struct EmitArgs {
+    /// Changes where the operation will be performed
+    #[arg(long = "path")]
+    pub path: Option<PathBuf>,
+
+    /// Whether to emit a build file in `fresh` mode
+    #[arg(long = "build-file")]
+    pub build_file: bool,
 }

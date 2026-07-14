@@ -87,7 +87,7 @@ fn compute_hash(file_string: &str) -> String {
         .collect::<String>()
 }
 
-fn load_or_init_lock(current_toml: &SaltToml) -> anyhow::Result<SaltLock> {
+pub fn load_or_init_lock(current_toml: &SaltToml) -> anyhow::Result<SaltLock> {
     // NOTE: Boilerplate right now is kept to avoid function abstraction hell
     let lock_path = Path::new("Salt.lock");
     if !lock_path.is_file() {
@@ -137,9 +137,108 @@ pub fn sync_workspace(
     Ok(updated_files)
 }
 
-pub fn emit_project(base_dir: &Path, cache_dir: &Path) -> anyhow::Result<()> {
+pub fn emit_project(
+    base_dir: &Path,
+    cache_dir: &Path,
+    build_dir: &Path,
+    build_file: bool,
+) -> anyhow::Result<()> {
     fs_utils::verify_workspace(base_dir)?;
     fs_utils::copy_project_files(base_dir, cache_dir)?;
+    let salt_toml_str = fs::read_to_string(base_dir.join("Salt.toml"))?;
+    let current_toml: SaltToml = toml::from_str(&salt_toml_str)?;
+
+    let lock = load_or_init_lock(&current_toml)?;
+
+    if build_file {
+        let plan = prepare_build_plan(&lock, base_dir)?;
+
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(cache_dir.join("CMakeLists.txt"))?;
+
+        writeln!(
+            file,
+            "cmake_minimum_required(VERSION {})",
+            lock.manifest.build.build_sys_ver
+        )?;
+        writeln!(file, "project({} LANGUAGES C)", lock.manifest.package.name)?;
+        writeln!(
+            file,
+            "# !![ REMOVE the following line (output directory) if moving to main directory ]!!"
+        )?;
+        writeln!(
+            file,
+            "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"{}\")",
+            &build_dir.to_string_lossy().replace('\\', "/")
+        )?;
+        writeln!(
+            file,
+            "set(CMAKE_C_STANDARD {})\nset(CMAKE_C_STANDARD_REQUIRED ON)",
+            lock.manifest.build.edition.to_string().replace('c', "")
+        )?;
+        writeln!(file)?;
+
+        for unit in &plan {
+            let mut unit_paths = Vec::new();
+            for path in &unit.src {
+                match path.strip_prefix(base_dir) {
+                    Ok(relative_path) => {
+                        unit_paths.push(format!(
+                            "\"{}\"",
+                            relative_path.to_string_lossy().replace('\\', "/")
+                        ));
+                    }
+                    Err(_) => {
+                        unit_paths
+                            .push(format!("\"{}\"", path.to_string_lossy().replace('\\', "/")));
+                    }
+                }
+                let src_paths = unit_paths.join(" ");
+
+                match unit.kind {
+                    UnitKinds::Bin => {
+                        writeln!(file, "# === UNIT: bin {} ===", unit.name)?;
+                        writeln!(file, "add_executable({} {})", unit.name, src_paths)?;
+                    }
+                    UnitKinds::Lib => {
+                        writeln!(file, "# === UNIT: lib {} ===", unit.name)?;
+                        writeln!(file, "add_library({} STATIC {})", unit.name, src_paths)?;
+                    }
+                    UnitKinds::Dyn => {
+                        writeln!(file, "# === UNIT: dyn {} ===", unit.name)?;
+                        writeln!(file, "add_library({} SHARED {})", unit.name, src_paths)?;
+                    }
+                }
+                if let Some(includes) = &unit.include {
+                    for inc in includes {
+                        if let Ok(rel_inc) = inc.strip_prefix(base_dir) {
+                            writeln!(
+                                file,
+                                "target_include_directories({} PRIVATE {})",
+                                unit.name,
+                                rel_inc.to_string_lossy()
+                            )?;
+                        }
+                    }
+                }
+
+                if !unit.resolved_deps.is_empty() {
+                    writeln!(file, "# === DEPS: {} ===", &unit.name)?;
+                    write!(file, "target_link_libraries({} PRIVATE ", unit.name)?;
+                    let mut unit_deps = Vec::new();
+                    for (dep_name, _dep_kind) in &unit.resolved_deps {
+                        unit_deps.push(dep_name.clone());
+                    }
+                    let dep_str = unit_deps.join(" ");
+                    writeln!(file, "{})", dep_str)?;
+                }
+                writeln!(file)?;
+            }
+        }
+    }
     Ok(())
 }
 
@@ -254,7 +353,10 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
 pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
     println!("[info]\nCompiling project...");
 
-    let base_dir = std::env::current_dir()?;
+    let base_dir = match &args.path {
+        Some(path) => path.canonicalize()?,
+        None => std::env::current_dir()?,
+    };
     fs_utils::verify_workspace(&base_dir)?;
     let cache_dir = base_dir.join(".csalt");
 
@@ -262,7 +364,17 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
     let current_toml: SaltToml = toml::from_str(&salt_toml_str)?;
 
     let lock = load_or_init_lock(&current_toml)?;
-    emit_project(&base_dir, &cache_dir)?;
+    // TODO: Consider a more professional output directory
+    let out_bin_dir = base_dir.join(match &lock.manifest.build.build_dir {
+        Some(dir) => dir,
+        None => Path::new("build/"),
+    });
+    emit_project(
+        &base_dir,
+        &cache_dir,
+        &out_bin_dir,
+        /* build_file */ false,
+    )?;
 
     if !args.backend_flags.is_empty() {
         let target_compiler = if let Some(backend) = &args.backend {
@@ -281,11 +393,6 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    // TODO: Consider a more professional output directory
-    let out_bin_dir = base_dir.join(match &lock.manifest.build.build_dir {
-        Some(dir) => dir,
-        None => Path::new("build/"),
-    });
     fs::create_dir_all(&out_bin_dir)?;
     let in_bin_dir = cache_dir.join(
         out_bin_dir
@@ -360,6 +467,9 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
             CompilerBackend::Gcc | CompilerBackend::Clang | CompilerBackend::Zig => {
                 if compiler_backend == CompilerBackend::Zig {
                     target_compiler.arg("cc");
+                    if let Some(target) = &args.zig_target {
+                        target_compiler.arg("-target").arg(target);
+                    }
 
                     // --- DEBUG ---
                     if debug_on {
@@ -610,7 +720,10 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
 pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
     println!("[info] Building project...");
 
-    let base_dir = std::env::current_dir()?;
+    let base_dir = match &build_args.path {
+        Some(path) => path.canonicalize()?,
+        None => std::env::current_dir()?,
+    };
     fs_utils::verify_workspace(&base_dir)?;
     let cache_dir = base_dir.join(".csalt");
 
@@ -618,7 +731,6 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
     let current_toml: SaltToml = toml::from_str(&salt_toml_str)?;
 
     let lock = load_or_init_lock(&current_toml)?;
-    emit_project(&base_dir, &cache_dir)?;
     let mut build_dir = base_dir.join(
         lock.manifest
             .build
@@ -628,6 +740,9 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
     );
     fs::create_dir_all(&build_dir)?;
     build_dir = build_dir.canonicalize()?;
+    emit_project(
+        &base_dir, &cache_dir, &build_dir, /* build_file */ false,
+    )?;
 
     let backend = if let Some(backend) = &build_args.backend {
         BuildSystems::from_string(backend)?
@@ -659,149 +774,45 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
 
             if mode == BuildMode::Managed {
                 println!("[info] Manual CMakeLists.txt detected. Running in Managed Mode...");
-                // NOTE: Consider using the compiler option to choose which one to search for first
-
-                let mut cmake_configure = std::process::Command::new("cmake");
-                cmake_configure
-                    .current_dir(&cache_dir)
-                    .arg("-B")
-                    .arg(&build_dir);
-
-                let config_status = cmake_configure.status()?;
-                if !config_status.success() {
-                    anyhow::bail!("CMake configuration failed");
-                }
-
-                let mut cmake_build = std::process::Command::new("cmake");
-                cmake_build
-                    .current_dir(&cache_dir)
-                    .arg("--build")
-                    .arg(&build_dir);
-
-                let build_status = cmake_build.status()?;
-                if !build_status.success() {
-                    anyhow::bail!("CMake build step failed");
-                }
-
-                println!("[info] Managed Mode build finished successfully!");
-            } else {
+            }
+            if mode == BuildMode::Fresh {
                 println!(
                     "[info] No manual configuration found. Generating Fresh CMakeLists.txt..."
                 );
 
-                let plan = prepare_build_plan(&lock, base_dir.as_path())?;
+                emit_project(
+                    &base_dir, &cache_dir, &build_dir, /* build_file */ true,
+                )?;
+            }
+            // NOTE: Consider using the compiler option to choose which one to search for first
 
-                match fs::OpenOptions::new()
-                    .write(true)
-                    .create(true)
-                    .truncate(true)
-                    .open(cache_dir.join("CMakeLists.txt"))
-                {
-                    Ok(mut file) => {
-                        writeln!(
-                            file,
-                            "cmake_minimum_required(VERSION {})",
-                            lock.manifest.build.build_sys_ver
-                        )?;
-                        writeln!(file, "project({} LANGUAGES C)", lock.manifest.package.name)?;
-                        writeln!(
-                            file,
-                            "# !![ REMOVE the following line (output directory) if moving to main directory ]!!"
-                        )?;
-                        writeln!(
-                            file,
-                            "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"{}\")",
-                            &build_dir.to_string_lossy().replace('\\', "/")
-                        )?;
-                        writeln!(
-                            file,
-                            "set(CMAKE_C_STANDARD {})\nset(CMAKE_C_STANDARD_REQUIRED ON)",
-                            lock.manifest.build.edition.to_string().replace('c', "")
-                        )?;
-                        writeln!(file)?;
+            let mut cmake_configure = std::process::Command::new("cmake");
+            cmake_configure
+                .current_dir(&cache_dir)
+                .arg("-B")
+                .arg(&build_dir);
 
-                        for unit in &plan {
-                            let mut unit_paths = Vec::new();
-                            for path in &unit.src {
-                                if let Ok(relative_path) = path.strip_prefix(&base_dir) {
-                                    unit_paths
-                                        .push(relative_path.to_string_lossy().replace('\\', "/"));
-                                }
-                            }
-                            let src_paths = unit_paths.join(" ");
+            let config_status = cmake_configure.status()?;
+            if !config_status.success() {
+                anyhow::bail!("CMake configuration failed");
+            }
 
-                            match unit.kind {
-                                UnitKinds::Bin => {
-                                    writeln!(file, "# === UNIT: bin {} ===", unit.name)?;
-                                    writeln!(file, "add_executable({} {})", unit.name, src_paths)?;
-                                }
-                                UnitKinds::Lib => {
-                                    writeln!(file, "# === UNIT: lib {} ===", unit.name)?;
-                                    writeln!(
-                                        file,
-                                        "add_library({} STATIC {})",
-                                        unit.name, src_paths
-                                    )?;
-                                }
-                                UnitKinds::Dyn => {
-                                    writeln!(file, "# === UNIT: dyn {} ===", unit.name)?;
-                                    writeln!(
-                                        file,
-                                        "add_library({} SHARED {})",
-                                        unit.name, src_paths
-                                    )?;
-                                }
-                            }
-                            if let Some(includes) = &unit.include {
-                                for inc in includes {
-                                    if let Ok(rel_inc) = inc.strip_prefix(&base_dir) {
-                                        writeln!(
-                                            file,
-                                            "target_include_directories({} PRIVATE {})",
-                                            unit.name,
-                                            rel_inc.to_string_lossy()
-                                        )?;
-                                    }
-                                }
-                            }
+            let mut cmake_build = std::process::Command::new("cmake");
+            cmake_build
+                .current_dir(&cache_dir)
+                .arg("--build")
+                .arg(&build_dir);
 
-                            if !unit.resolved_deps.is_empty() {
-                                writeln!(file, "# === DEPS: {} ===", &unit.name)?;
-                                write!(file, "target_link_libraries({} PRIVATE ", unit.name)?;
-                                let mut unit_deps = Vec::new();
-                                for (dep_name, _dep_kind) in &unit.resolved_deps {
-                                    unit_deps.push(dep_name.clone());
-                                }
-                                let dep_str = unit_deps.join(" ");
-                                writeln!(file, "{})", dep_str)?;
-                            }
-                            writeln!(file)?;
-                        }
+            let build_status = cmake_build.status()?;
+            if !build_status.success() {
+                anyhow::bail!("CMake build step failed");
+            }
 
-                        let mut cmake_configure = std::process::Command::new("cmake");
-                        cmake_configure
-                            .current_dir(&cache_dir)
-                            .arg("-B")
-                            .arg(&build_dir);
-                        if !cmake_configure.status()?.success() {
-                            anyhow::bail!("CMake configuration failed in Fresh Mode");
-                        }
-
-                        let mut cmake_build = std::process::Command::new("cmake");
-                        cmake_build
-                            .current_dir(&cache_dir)
-                            .arg("--build")
-                            .arg(&build_dir);
-                        if !cmake_build.status()?.success() {
-                            anyhow::bail!("CMake build step failed in Fresh Mode");
-                        }
-
-                        println!("[info] Fresh Mode build finished successfully!");
-                    }
-                    Err(e) => {
-                        return Err(e.into());
-                    }
-                }
+            if mode == BuildMode::Managed {
+                println!("[info] Managed Mode build finished successfully!");
+            }
+            if mode == BuildMode::Fresh {
+                println!("[info] Fresh Mode build finished successfully!");
             }
         }
     }

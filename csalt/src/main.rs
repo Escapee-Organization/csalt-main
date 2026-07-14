@@ -39,15 +39,29 @@ fn run_csalt() -> anyhow::Result<()> {
             println!("[info]\nProject compiled successfully");
         }
 
-        Commands::Emit => {
-            let base_dir = std::env::current_dir().context("Failed to get current directory")?;
+        Commands::Emit(emit_args) => {
+            let base_dir = match emit_args.path.as_deref() {
+                Some(path) => std::path::Path::new(path).canonicalize()?,
+                None => std::env::current_dir().context("Failed to get current directory")?,
+            };
             let cache_dir = base_dir.join(".csalt");
-            emit_project(&base_dir, &cache_dir)?;
+            let toml = toml::from_str(&std::fs::read_to_string(base_dir.join("Salt.toml"))?)?;
+            let lock = csalt::load_or_init_lock(&toml)?;
+            let build_dir = base_dir.join(
+                lock.manifest
+                    .build
+                    .build_dir
+                    .as_deref()
+                    .unwrap_or(std::path::Path::new("build")),
+            );
+            std::fs::create_dir_all(&build_dir)?;
+            let build_dir = build_dir.canonicalize()?;
+            emit_project(&base_dir, &cache_dir, &build_dir, emit_args.build_file)?;
             println!("[info] Project emitted successfully");
         }
 
-        Commands::Clean => {
-            fs_utils::clean_cache_dir()?;
+        Commands::Clean { path } => {
+            fs_utils::clean_cache_dir(path.clone())?;
             println!("[info]\nCache directory cleaned successfully");
         }
 
