@@ -774,32 +774,8 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
 
             if mode == BuildMode::Managed {
                 println!("[info] Manual CMakeLists.txt detected. Running in Managed Mode...");
-                // NOTE: Consider using the compiler option to choose which one to search for first
-
-                let mut cmake_configure = std::process::Command::new("cmake");
-                cmake_configure
-                    .current_dir(&cache_dir)
-                    .arg("-B")
-                    .arg(&build_dir);
-
-                let config_status = cmake_configure.status()?;
-                if !config_status.success() {
-                    anyhow::bail!("CMake configuration failed");
-                }
-
-                let mut cmake_build = std::process::Command::new("cmake");
-                cmake_build
-                    .current_dir(&cache_dir)
-                    .arg("--build")
-                    .arg(&build_dir);
-
-                let build_status = cmake_build.status()?;
-                if !build_status.success() {
-                    anyhow::bail!("CMake build step failed");
-                }
-
-                println!("[info] Managed Mode build finished successfully!");
-            } else {
+            }
+            if mode == BuildMode::Fresh {
                 println!(
                     "[info] No manual configuration found. Generating Fresh CMakeLists.txt..."
                 );
@@ -807,25 +783,35 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
                 emit_project(
                     &base_dir, &cache_dir, &build_dir, /* build_file */ true,
                 )?;
+            }
+            // NOTE: Consider using the compiler option to choose which one to search for first
 
-                let mut cmake_configure = std::process::Command::new("cmake");
-                cmake_configure
-                    .current_dir(&cache_dir)
-                    .arg("-B")
-                    .arg(&build_dir);
-                if !cmake_configure.status()?.success() {
-                    anyhow::bail!("CMake configuration failed in Fresh Mode");
-                }
+            let mut cmake_configure = std::process::Command::new("cmake");
+            cmake_configure
+                .current_dir(&cache_dir)
+                .arg("-B")
+                .arg(&build_dir);
 
-                let mut cmake_build = std::process::Command::new("cmake");
-                cmake_build
-                    .current_dir(&cache_dir)
-                    .arg("--build")
-                    .arg(&build_dir);
-                if !cmake_build.status()?.success() {
-                    anyhow::bail!("CMake build step failed in Fresh Mode");
-                }
+            let config_status = cmake_configure.status()?;
+            if !config_status.success() {
+                anyhow::bail!("CMake configuration failed");
+            }
 
+            let mut cmake_build = std::process::Command::new("cmake");
+            cmake_build
+                .current_dir(&cache_dir)
+                .arg("--build")
+                .arg(&build_dir);
+
+            let build_status = cmake_build.status()?;
+            if !build_status.success() {
+                anyhow::bail!("CMake build step failed");
+            }
+
+            if mode == BuildMode::Managed {
+                println!("[info] Managed Mode build finished successfully!");
+            }
+            if mode == BuildMode::Fresh {
                 println!("[info] Fresh Mode build finished successfully!");
             }
         }
