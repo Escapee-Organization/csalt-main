@@ -60,8 +60,8 @@ fn run_csalt() -> anyhow::Result<()> {
             println!("[info] Project emitted successfully");
         }
 
-        Commands::Clean => {
-            fs_utils::clean_cache_dir()?;
+        Commands::Clean { path } => {
+            fs_utils::clean_cache_dir(path.clone())?;
             println!("[info]\nCache directory cleaned successfully");
         }
 

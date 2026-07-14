@@ -46,7 +46,11 @@ pub enum Commands {
 
     /// Clean the cache directory (.csalt/)
     #[command(name = "clean")]
-    Clean,
+    Clean {
+        /// Changes where the operation will be performed
+        #[arg(long = "path")]
+        path: Option<PathBuf>,
+    },
 }
 
 #[derive(Parser, Debug)]

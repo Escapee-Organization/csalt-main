@@ -33,10 +33,12 @@ pub fn verify_workspace(base_dir: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn clean_cache_dir() -> anyhow::Result<()> {
-    let base_dir = std::env::current_dir()?;
-    verify_workspace(&base_dir)?;
-    let cache_dir = base_dir.join(".csalt");
+pub fn clean_cache_dir(base_dir: Option<PathBuf>) -> anyhow::Result<()> {
+    let base_directory = base_dir
+        .unwrap_or(std::env::current_dir()?)
+        .canonicalize()?;
+    verify_workspace(&base_directory)?;
+    let cache_dir = base_directory.join(".csalt");
     if cache_dir.exists() {
         fs::remove_dir_all(&cache_dir)?;
     }
