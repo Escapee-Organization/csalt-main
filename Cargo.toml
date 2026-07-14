@@ -3,3 +3,10 @@ members = [
     "csalt",
 ]
 resolver = "2"
+
+[workspace.package]
+edition = "2024"
+license = "MPL-2.0"
+readme = "README.md"
+repository = "https://github.com/Escapee-Organization/csalt-main"
+description = "A Cargo-inspired, declarative build driver and workspace orchestrator designed to eliminate manual compilation headaches while not compromising absolute control over your C repo."
