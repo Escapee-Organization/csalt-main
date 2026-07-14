@@ -353,7 +353,10 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
 pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
     println!("[info]\nCompiling project...");
 
-    let base_dir = std::env::current_dir()?;
+    let base_dir = match &args.path {
+        Some(path) => path.canonicalize()?,
+        None => std::env::current_dir()?,
+    };
     fs_utils::verify_workspace(&base_dir)?;
     let cache_dir = base_dir.join(".csalt");
 

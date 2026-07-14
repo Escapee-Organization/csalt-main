@@ -77,6 +77,10 @@ pub struct CompileArgs {
     #[arg(short = 'b', long = "backend")]
     pub backend: Option<String>,
 
+    /// Changes where the operation will be performed
+    #[arg(long = "path")]
+    pub path: Option<PathBuf>,
+
     /// Choose the mode of transpilation, such as default, in-place, and clean
     #[arg(short = 'm', long = "mode")]
     pub mode: Option<String>,
