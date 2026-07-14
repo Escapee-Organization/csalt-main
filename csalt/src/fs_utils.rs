@@ -125,7 +125,6 @@ pub fn init_project(dir: &Path, full: bool, stealth: bool, init_git: bool) -> an
         unit: vec![UnitVector {
             name: project_name.to_string(),
             kind: UnitKinds::Bin,
-            main: PathBuf::from("src/main.c"),
             src: vec![PathBuf::from("src/")],
             include: Some(vec![PathBuf::from("include/")]),
             deps: None,

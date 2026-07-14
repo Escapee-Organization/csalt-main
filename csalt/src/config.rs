@@ -131,9 +131,7 @@ pub struct BuildSection {
 pub struct UnitVector {
     pub name: String,
     pub kind: UnitKinds,
-    pub main: PathBuf,
-
-    // Make sure it accepts non-recursive directories AND single files
+    // Main is now implicitly the first file in src.
     pub src: Vec<PathBuf>,
     #[serde(default)]
     pub include: Option<Vec<PathBuf>>,
@@ -183,13 +181,6 @@ impl SaltToml {
                 anyhow::bail!("Duplicate unit name found: '{}'", target.name);
             }
 
-            let extension = target.main.extension().and_then(|e| e.to_str());
-            if !(extension == Some("c") || extension == Some("csal")) {
-                anyhow::bail!(
-                    "The main target '{}' must be a valid C source file (.c or .csal)",
-                    target.main.to_string_lossy()
-                );
-            }
             if target.src.is_empty() {
                 anyhow::bail!(
                     "Unit '{}' must specify at least one source file or directory",

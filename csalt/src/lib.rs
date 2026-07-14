@@ -279,20 +279,6 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
         let mut gathered_src_files = std::collections::BTreeSet::new();
 
         for src_path in &unit.src {
-            let main_absolute = if unit.main.is_absolute() {
-                unit.main.clone()
-            } else {
-                base_dir.join(&unit.main)
-            };
-
-            if !main_absolute.is_file() {
-                anyhow::bail!(
-                    "Main entry file '{}' does not exist for unit '{}'",
-                    main_absolute.to_string_lossy(),
-                    unit.name
-                );
-            }
-
             let target = if src_path.is_absolute() {
                 src_path.clone()
             } else {
