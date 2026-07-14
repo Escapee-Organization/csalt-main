@@ -481,7 +481,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
 
                 match unit.kind {
                     UnitKinds::Bin => {
-                        target_compiler.arg("-o").arg(&output_executable);
+                        target_compiler.arg("-c");
 
                         // --- DEBUG ---
                         if debug_on {
@@ -490,11 +490,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                         }
                     }
                     UnitKinds::Dyn => {
-                        target_compiler
-                            .arg("-shared")
-                            .arg("-fPIC")
-                            .arg("-o")
-                            .arg(&out_dyn);
+                        target_compiler.arg("-c");
 
                         // --- DEBUG ---
                         if debug_on {
@@ -601,28 +597,6 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
             }
         }
 
-        for (dep_name, _dep_kind) in &unit.resolved_deps {
-            // Tell the compiler to look right inside our current scratchpad dir for dependencies
-            match compiler_backend {
-                CompilerBackend::Msvc | CompilerBackend::ClangCl => {
-                    target_compiler.arg(format!("{}.{}", dep_name, dyn_ext));
-
-                    // --- DEBUG ---
-                    if debug_on {
-                        debug_output_text.push_str(format!(" {}.lib", dep_name).as_str());
-                    }
-                }
-                _ => {
-                    target_compiler.arg("-L.").arg(format!("-l{}", dep_name));
-
-                    // --- DEBUG ---
-                    if debug_on {
-                        debug_output_text.push_str(format!(" -l{}", dep_name).as_str());
-                    }
-                }
-            }
-        }
-
         let status = target_compiler.current_dir(&cache_dir).status()?;
         if !status.success() {
             anyhow::bail!("Failed to compile unit '{}'", unit.name);
@@ -688,6 +662,68 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
             }
 
             fs::copy(cache_dir.join(lib_name.clone()), out_bin_dir.join(lib_name))?;
+        }
+
+        if unit.kind == UnitKinds::Dyn || unit.kind == UnitKinds::Bin {
+            let mut link_command = compiler_backend.generate_command();
+
+            for src_file in &unit.src {
+                if let Some(file_stem) = src_file.file_stem() {
+                    let obj_name = format!("{}.{}", file_stem.to_string_lossy(), obj_ext);
+                    link_command.arg(obj_name);
+                }
+            }
+            match compiler_backend {
+                CompilerBackend::Clang | CompilerBackend::Gcc | CompilerBackend::Zig => {
+                    if compiler_backend == CompilerBackend::Zig {
+                        link_command.arg("cc");
+                        if let Some(target) = &args.zig_target {
+                            link_command.arg("-target").arg(target);
+                        }
+                    }
+
+                    if unit.kind == UnitKinds::Dyn {
+                        link_command
+                            .arg("-shared")
+                            .arg("-fPIC")
+                            .arg("-o")
+                            .arg(&out_dyn);
+                    } else {
+                        link_command.arg("-o").arg(&output_executable);
+                    }
+
+                    link_command.arg("-L.");
+
+                    for (dep_name, _dep_kind) in &unit.resolved_deps {
+                        // Tell the compiler to look right inside our current scratchpad dir for dependencies
+                        match compiler_backend {
+                            CompilerBackend::Msvc | CompilerBackend::ClangCl => {
+                                link_command.arg(format!("{}.{}", dep_name, dyn_ext));
+
+                                // --- DEBUG ---
+                                if debug_on {
+                                    debug_output_text
+                                        .push_str(format!(" {}.lib", dep_name).as_str());
+                                }
+                            }
+                            _ => {
+                                link_command.arg(format!("-l{}", dep_name));
+
+                                // --- DEBUG ---
+                                if debug_on {
+                                    debug_output_text.push_str(format!(" -l{}", dep_name).as_str());
+                                }
+                            }
+                        }
+                    }
+                }
+                CompilerBackend::Msvc | CompilerBackend::ClangCl => {}
+            }
+
+            let status = link_command.current_dir(&cache_dir).status()?;
+            if !status.success() {
+                anyhow::bail!("Failed to link unit '{}'", unit.name);
+            }
         }
 
         // --- DEBUG ---
