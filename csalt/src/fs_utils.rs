@@ -16,10 +16,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 pub fn ensure_cache_dir() -> anyhow::Result<PathBuf> {
-    let home = home_dir().ok_or(Error::new(
-        ErrorKind::NotFound,
-        "[ERROR]\nhome directory not found",
-    ))?;
+    let home = home_dir().ok_or(anyhow::anyhow!("Home directory not found"))?;
     let cache_dir = home.join(".csalt");
     std::fs::create_dir_all(&cache_dir).map_err(Error::other)?;
     Ok(cache_dir)
@@ -49,6 +46,7 @@ pub fn clean_cache_dir(base_dir: Option<PathBuf>) -> anyhow::Result<()> {
 
 // TODO: Consider using `Salt.lock` to exclude unnecessary file copying
 pub fn copy_project_files(base_dir: &Path, cache_dir: &Path) -> anyhow::Result<()> {
+    clean_cache_dir(Some(base_dir.to_path_buf()))?;
     let excluded_dirs = [".csalt", ".git", "build"];
     let excluded_files = ["Salt.toml", "Salt.lock", ".gitignore"];
 
@@ -124,7 +122,6 @@ pub fn init_project(dir: &Path, full: bool, stealth: bool, init_git: bool) -> an
         unit: vec![UnitVector {
             name: project_name.to_string(),
             kind: UnitKinds::Bin,
-            main: PathBuf::from("src/main.c"),
             src: vec![PathBuf::from("src/")],
             include: Some(vec![PathBuf::from("include/")]),
             deps: None,

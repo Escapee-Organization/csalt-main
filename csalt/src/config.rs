@@ -12,11 +12,14 @@ use std::process::Command;
 // --------------- DATA STRUCTURES ---------------
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
-// To translate: lib -> library, dyn -> dynamic library, bin -> binary
 pub enum UnitKinds {
     Lib,
     Dyn,
     Bin,
+    /// Pre-compiled library
+    ExtLib,
+    /// Pre-compiled dynamic library
+    ExtDyn,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -127,16 +130,12 @@ pub struct BuildSection {
 pub struct UnitVector {
     pub name: String,
     pub kind: UnitKinds,
-    pub main: PathBuf,
-
-    // Make sure it accepts non-recursive directories AND single files
+    // Main is now implicitly the first file in src.
     pub src: Vec<PathBuf>,
     #[serde(default)]
     pub include: Option<Vec<PathBuf>>,
     #[serde(default)]
     pub deps: Option<Vec<String>>,
-
-    // TODO: Research flags for include directories (include), library search paths, and library files for dynamic translation later.
     #[serde(default)]
     pub compiler_flags: Option<Vec<String>>,
     #[serde(default)]
@@ -179,13 +178,6 @@ impl SaltToml {
                 anyhow::bail!("Duplicate unit name found: '{}'", target.name);
             }
 
-            let extension = target.main.extension().and_then(|e| e.to_str());
-            if !(extension == Some("c") || extension == Some("csal")) {
-                anyhow::bail!(
-                    "The main target '{}' must be a valid C source file (.c or .csal)",
-                    target.main.to_string_lossy()
-                );
-            }
             if target.src.is_empty() {
                 anyhow::bail!(
                     "Unit '{}' must specify at least one source file or directory",
@@ -194,7 +186,7 @@ impl SaltToml {
             }
 
             match target.kind {
-                UnitKinds::Lib | UnitKinds::Dyn => {
+                UnitKinds::Lib | UnitKinds::Dyn | UnitKinds::ExtLib | UnitKinds::ExtDyn => {
                     if seen_bin {
                         anyhow::bail!(
                             "The {:?} unit '{}' must come before Bin targets",

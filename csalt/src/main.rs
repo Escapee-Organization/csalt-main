@@ -20,23 +20,23 @@ fn run_csalt() -> anyhow::Result<()> {
     match &args.command {
         Commands::Init { dir } => {
             fs_utils::init_project(dir, false, false, false)?;
-            println!("[info]\nProject directory initialized successfully");
+            println!("[Success] Project directory initialized successfully");
         }
         Commands::New(new_args) => {
             fs_utils::new_project(new_args)?;
             println!(
-                "[info]\nNew project '{}' created successfully",
+                "[Success] New project '{}' created successfully",
                 new_args.name
             );
         }
         #[cfg(feature = "experimental")]
         Commands::Update => {
             update_csalt()?;
-            println!("[info]\nCsalt updated successfully");
+            println!("[Success] Csalt updated successfully");
         }
         Commands::Compile(salt_args) => {
             build_manual_project(salt_args)?;
-            println!("[info]\nProject compiled successfully");
+            println!("[Success] Project compiled successfully");
         }
 
         Commands::Emit(emit_args) => {
@@ -57,17 +57,17 @@ fn run_csalt() -> anyhow::Result<()> {
             std::fs::create_dir_all(&build_dir)?;
             let build_dir = build_dir.canonicalize()?;
             emit_project(&base_dir, &cache_dir, &build_dir, emit_args.build_file)?;
-            println!("[info] Project emitted successfully");
+            println!("[Success] Project emitted successfully");
         }
 
         Commands::Clean { path } => {
             fs_utils::clean_cache_dir(path.clone())?;
-            println!("[info]\nCache directory cleaned successfully");
+            println!("[Success] Cache directory cleaned successfully");
         }
 
         Commands::Build(_build_args) => {
             build_managed_project(_build_args)?;
-            println!("[info]\nProject built successfully");
+            println!("[Success] Project built successfully");
         }
     }
     Ok(())
@@ -79,7 +79,7 @@ fn run_csalt() -> anyhow::Result<()> {
 
 fn main() {
     if let Err(e) = run_csalt() {
-        eprintln!("\x1b[1;31m[ERROR]\x1b[0m\n{}", e);
+        eprintln!("\x1b[1;31m[ERROR]\x1b[0m {}", e);
         std::process::exit(1);
     }
 }
