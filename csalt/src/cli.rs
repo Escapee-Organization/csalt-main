@@ -93,6 +93,10 @@ pub struct CompileArgs {
     #[arg(short = 'r', long = "run", conflicts_with = "backend_flags")]
     pub run: bool,
 
+    /// ZIG ONLY: Specifies the target CPU architecture
+    #[arg(long = "zig-target", short = 'z')]
+    pub zig_target: Option<String>,
+
     #[cfg(feature = "experimental")]
     /// Debug mode, enables debug output
     #[arg(long = "debug")]

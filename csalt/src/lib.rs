@@ -467,6 +467,9 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
             CompilerBackend::Gcc | CompilerBackend::Clang | CompilerBackend::Zig => {
                 if compiler_backend == CompilerBackend::Zig {
                     target_compiler.arg("cc");
+                    if let Some(target) = &args.zig_target {
+                        target_compiler.arg("-target").arg(target);
+                    }
 
                     // --- DEBUG ---
                     if debug_on {
