@@ -42,7 +42,7 @@ pub enum Commands {
 
     /// Emit and generate the project
     #[command(name = "emit")]
-    Emit,
+    Emit(EmitArgs),
 
     /// Clean the cache directory (.csalt/)
     #[command(name = "clean")]
@@ -104,4 +104,16 @@ pub struct BuildArgs {
     /// Trailing parameters forwarded completely intact to the backend compiler layer
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, action = ArgAction::Append)]
     pub backend_flags: Vec<String>,
+}
+
+// NOTE: Come up with better names for these commands later
+#[derive(Parser, Debug)]
+pub struct EmitArgs {
+    /// Changes where the operation will be performed
+    #[arg(long = "path")]
+    pub path: Option<PathBuf>,
+
+    /// Whether to emit a build file in `fresh` mode
+    #[arg(long = "build-file")]
+    pub build_file: bool,
 }
