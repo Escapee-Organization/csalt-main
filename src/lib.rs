@@ -714,7 +714,10 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
 pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
     println!("[info] Building project...");
 
-    let base_dir = std::env::current_dir()?;
+    let base_dir = match &build_args.path {
+        Some(path) => path.canonicalize()?,
+        None => std::env::current_dir()?,
+    };
     fs_utils::verify_workspace(&base_dir)?;
     let cache_dir = base_dir.join(".csalt");
 

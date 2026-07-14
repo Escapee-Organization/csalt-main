@@ -101,6 +101,10 @@ pub struct BuildArgs {
     #[arg(short = 'b', long = "backend")]
     pub backend: Option<String>,
 
+    /// Changes where the operation will be performed
+    #[arg(long = "path")]
+    pub path: Option<PathBuf>,
+
     /// Trailing parameters forwarded completely intact to the backend compiler layer
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, action = ArgAction::Append)]
     pub backend_flags: Vec<String>,
