@@ -12,7 +12,6 @@ use std::process::Command;
 // --------------- DATA STRUCTURES ---------------
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
-// To translate: lib -> library, dyn -> dynamic library, bin -> binary
 pub enum UnitKinds {
     Lib,
     Dyn,
@@ -137,8 +136,6 @@ pub struct UnitVector {
     pub include: Option<Vec<PathBuf>>,
     #[serde(default)]
     pub deps: Option<Vec<String>>,
-
-    // TODO: Research flags for include directories (include), library search paths, and library files for dynamic translation later.
     #[serde(default)]
     pub compiler_flags: Option<Vec<String>>,
     #[serde(default)]
