@@ -16,7 +16,7 @@
     <img src="https://img.shields.io/crates/v/csalt?style=for-the-badge" alt="Crates.io Version">
     <img src="https://img.shields.io/crates/l/csalt?style=for-the-badge" alt="Crates.io License">
     <img src="https://img.shields.io/crates/size/csalt?style=for-the-badge" alt="Crates.io Size">
-    <img src="https://img.shields.io/crates/dv/csalt?style=for-the-badge" alt="Crates.io Downloads (latest version)">
+    <img src="https://img.shields.io/crates/d/csalt?style=for-the-badge" alt="Crates.io Total Downloads">
   </a>
 </p>
 
