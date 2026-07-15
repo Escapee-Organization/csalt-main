@@ -221,8 +221,9 @@ pub fn emit_project(
                         // (Assuming `src_paths` contains the single path to your .a/.lib file)
                         writeln!(
                             file,
-                            "set_target_properties({} PROPERTIES IMPORTED_LOCATION \"{}\")",
-                            unit.name, src_paths
+                            "set_target_properties({} PROPERTIES IMPORTED_LOCATION \"${{CMAKE_CURRENT_SOURCE_DIR}}/{}\")",
+                            unit.name,
+                            src_paths.replace('"', "")
                         )?;
                     }
                     UnitKinds::ExtDyn => {
@@ -232,8 +233,9 @@ pub fn emit_project(
                         // 2. Set the property pointing directly to the pre-compiled file path
                         writeln!(
                             file,
-                            "set_target_properties({} PROPERTIES IMPORTED_LOCATION \"{}\")",
-                            unit.name, src_paths
+                            "set_target_properties({} PROPERTIES IMPORTED_LOCATION \"${{CMAKE_CURRENT_SOURCE_DIR}}/{}\")",
+                            unit.name,
+                            src_paths.replace('"', "")
                         )?;
                     }
                 }
