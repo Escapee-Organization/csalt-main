@@ -37,3 +37,7 @@ fn cmake_test() {
 
     let _ = fs::remove_dir_all(test_root);
 }
+    );
+
+    let _ = fs::remove_dir_all(test_root);
+}
