@@ -221,8 +221,9 @@ pub fn emit_project(
                         // (Assuming `src_paths` contains the single path to your .a/.lib file)
                         writeln!(
                             file,
-                            "set_target_properties({} PROPERTIES IMPORTED_LOCATION \"{}\")",
-                            unit.name, src_paths
+                            "set_target_properties({} PROPERTIES IMPORTED_LOCATION \"${{CMAKE_CURRENT_SOURCE_DIR}}/{}\")",
+                            unit.name,
+                            src_paths.replace('"', "")
                         )?;
                     }
                     UnitKinds::ExtDyn => {
@@ -232,8 +233,9 @@ pub fn emit_project(
                         // 2. Set the property pointing directly to the pre-compiled file path
                         writeln!(
                             file,
-                            "set_target_properties({} PROPERTIES IMPORTED_LOCATION \"{}\")",
-                            unit.name, src_paths
+                            "set_target_properties({} PROPERTIES IMPORTED_LOCATION \"${{CMAKE_CURRENT_SOURCE_DIR}}/{}\")",
+                            unit.name,
+                            src_paths.replace('"', "")
                         )?;
                     }
                 }
@@ -891,7 +893,11 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
             cmake_configure
                 .current_dir(&cache_dir)
                 .arg("-B")
-                .arg(&build_dir);
+                .arg(&build_dir)
+                .arg(format!(
+                    "-DCMAKE_C_COMPILER={}",
+                    lock.manifest.build.compiler.to_string()
+                ));
 
             let config_status = cmake_configure.status()?;
             if !config_status.success() {

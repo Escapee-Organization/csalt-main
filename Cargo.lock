@@ -300,13 +300,14 @@ dependencies = [
 
 [[package]]
 name = "csalt"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "anyhow",
  "clap",
  "dirs",
  "reqwest 0.11.27",
  "self_update",
+ "semver",
  "serde",
  "serde_json",
  "sha2",
