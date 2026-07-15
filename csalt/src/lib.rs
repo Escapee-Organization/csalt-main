@@ -891,7 +891,11 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
             cmake_configure
                 .current_dir(&cache_dir)
                 .arg("-B")
-                .arg(&build_dir);
+                .arg(&build_dir)
+                .arg(format!(
+                    "-DCMAKE_C_COMPILER={}",
+                    lock.manifest.build.compiler.to_string()
+                ));
 
             let config_status = cmake_configure.status()?;
             if !config_status.success() {
