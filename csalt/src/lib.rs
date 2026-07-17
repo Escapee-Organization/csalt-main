@@ -21,6 +21,7 @@ use toml;
 pub mod cli;
 pub mod config;
 pub mod fs_utils;
+pub mod old_build_sys;
 pub mod transpile;
 
 // ----------------- DATA STRUCTURES -----------------
@@ -161,110 +162,15 @@ pub fn emit_project(
             .truncate(true)
             .open(cache_dir.join("CMakeLists.txt"))?;
 
-        writeln!(
-            file,
-            "cmake_minimum_required(VERSION {})",
-            lock.manifest.build.build_sys_ver
+        let output = old_build_sys::emit_build_file_output(
+            plan,
+            &lock.manifest.build.build_sys,
+            &lock.manifest.build.build_sys_ver,
+            base_dir,
+            build_dir,
+            &lock,
         )?;
-        writeln!(file, "project({} LANGUAGES C)", lock.manifest.package.name)?;
-        writeln!(
-            file,
-            "# !![ REMOVE the following line (output directory) if moving to main directory ]!!"
-        )?;
-        writeln!(
-            file,
-            "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"{}\")",
-            &build_dir.to_string_lossy().replace('\\', "/")
-        )?;
-        writeln!(
-            file,
-            "set(CMAKE_C_STANDARD {})\nset(CMAKE_C_STANDARD_REQUIRED ON)",
-            lock.manifest.build.edition.to_string().replace('c', "")
-        )?;
-        writeln!(file)?;
-
-        for unit in &plan {
-            let mut unit_paths = Vec::new();
-            for path in &unit.src {
-                match path.strip_prefix(base_dir) {
-                    Ok(relative_path) => {
-                        unit_paths.push(format!(
-                            "\"{}\"",
-                            relative_path.to_string_lossy().replace('\\', "/")
-                        ));
-                    }
-                    Err(_) => {
-                        unit_paths
-                            .push(format!("\"{}\"", path.to_string_lossy().replace('\\', "/")));
-                    }
-                }
-                let src_paths = unit_paths.join(" ");
-
-                match unit.kind {
-                    UnitKinds::Bin => {
-                        writeln!(file, "# === UNIT: bin {} ===", unit.name)?;
-                        writeln!(file, "add_executable({} {})", unit.name, src_paths)?;
-                    }
-                    UnitKinds::Lib => {
-                        writeln!(file, "# === UNIT: lib {} ===", unit.name)?;
-                        writeln!(file, "add_library({} STATIC {})", unit.name, src_paths)?;
-                    }
-                    UnitKinds::Dyn => {
-                        writeln!(file, "# === UNIT: dyn {} ===", unit.name)?;
-                        writeln!(file, "add_library({} SHARED {})", unit.name, src_paths)?;
-                    }
-                    UnitKinds::ExtLib => {
-                        writeln!(file, "# === UNIT: extlib {} ===", unit.name)?;
-                        // 1. Declare the target as an IMPORTED STATIC library
-                        writeln!(file, "add_library({} STATIC IMPORTED GLOBAL)", unit.name)?;
-                        // 2. Set the property pointing directly to the pre-compiled file path
-                        // (Assuming `src_paths` contains the single path to your .a/.lib file)
-                        writeln!(
-                            file,
-                            "set_target_properties({} PROPERTIES IMPORTED_LOCATION \"${{CMAKE_CURRENT_SOURCE_DIR}}/{}\")",
-                            unit.name,
-                            src_paths.replace('"', "")
-                        )?;
-                    }
-                    UnitKinds::ExtDyn => {
-                        writeln!(file, "# === UNIT: extdyn {} ===", unit.name)?;
-                        // 1. Declare the target as an IMPORTED SHARED library
-                        writeln!(file, "add_library({} SHARED IMPORTED GLOBAL)", unit.name)?;
-                        // 2. Set the property pointing directly to the pre-compiled file path
-                        writeln!(
-                            file,
-                            "set_target_properties({} PROPERTIES IMPORTED_LOCATION \"${{CMAKE_CURRENT_SOURCE_DIR}}/{}\")",
-                            unit.name,
-                            src_paths.replace('"', "")
-                        )?;
-                    }
-                }
-                if let Some(includes) = &unit.include {
-                    for inc in includes {
-                        if let Ok(rel_inc) = inc.strip_prefix(base_dir) {
-                            writeln!(
-                                file,
-                                "target_include_directories({} PRIVATE {})",
-                                unit.name,
-                                rel_inc.to_string_lossy()
-                            )?;
-                        }
-                    }
-                }
-
-                if !unit.resolved_deps.is_empty() {
-                    writeln!(file, "# === DEPS: {} ===", &unit.name)?;
-                    write!(file, "target_link_libraries({} PRIVATE ", unit.name)?;
-                    let mut unit_deps = Vec::new();
-                    for (dep_name, _dep_kind, _dep_path) in &unit.resolved_deps {
-                        unit_deps.push(dep_name.clone());
-                    }
-                    let dep_str = unit_deps.join(" ");
-                    writeln!(file, "{})", dep_str)?;
-                }
-                writeln!(file)?;
-            }
-        }
+        writeln!(file, "{}", output)?;
     }
     Ok(())
 }
