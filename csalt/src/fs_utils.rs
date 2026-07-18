@@ -4,23 +4,18 @@
 
 use crate::LOCK_VERSION;
 use crate::cli::NewArgs;
-use crate::config::{
-    BuildSection, BuildSystems, CEditions, CompilerBackend, PackageSection, SaltLock, SaltToml,
-    UnitKinds, UnitVector,
-};
+use crate::config::{self, SaltLock, SaltToml};
 use crate::verify_command;
-use anyhow::Context;
 use dirs::home_dir;
-use std::fs;
-use std::fs::OpenOptions;
-use std::io::{Error, ErrorKind, Write};
+use std::fs::{self, OpenOptions};
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 pub fn ensure_cache_dir() -> anyhow::Result<PathBuf> {
     let home = home_dir().ok_or(anyhow::anyhow!("Home directory not found"))?;
     let cache_dir = home.join(".csalt");
-    std::fs::create_dir_all(&cache_dir).map_err(Error::other)?;
+    std::fs::create_dir_all(&cache_dir).map_err(io::Error::other)?;
     Ok(cache_dir)
 }
 
@@ -42,7 +37,7 @@ pub fn clean_cache_dir(base_dir: Option<PathBuf>) -> anyhow::Result<()> {
         fs::remove_dir_all(&cache_dir)?;
     }
 
-    fs::create_dir_all(cache_dir).map_err(Error::other)?;
+    fs::create_dir_all(cache_dir).map_err(io::Error::other)?;
     Ok(())
 }
 
@@ -76,7 +71,7 @@ pub fn copy_project_files(base_dir: &Path, cache_dir: &Path) -> anyhow::Result<(
             let relative_path = path
                 .as_path()
                 .strip_prefix(base_dir)
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
             let target_path = cache_dir.join(relative_path);
 
             if is_dir {
@@ -109,7 +104,7 @@ pub fn load_or_init_lock(current_toml: &SaltToml) -> anyhow::Result<SaltLock> {
     }
 
     let lock =
-        serde_json::from_str::<SaltLock>(&contents).context("`Salt.lock` contains invalid JSON")?;
+        serde_json::from_str::<SaltLock>(&contents).unwrap_or_else(|_| perfect_salt_lock.clone());
     if lock.manifest != *current_toml {
         return Ok(perfect_salt_lock);
     }
@@ -133,22 +128,22 @@ pub fn init_project(dir: &Path, full: bool, stealth: bool, init_git: bool) -> an
         .unwrap_or("project");
 
     let toml_content = SaltToml {
-        package: PackageSection {
+        package: config::PackageSection {
             name: project_name.to_string(),
             version: "0.1.0".to_string(),
             authors: vec!["".to_string()],
             description: "".to_string(),
         },
-        build: BuildSection {
-            build_sys: BuildSystems::CMake,
+        build: config::BuildSection {
+            build_sys: config::BuildSystems::CMake,
             build_sys_ver: "3.15".to_string(),
             build_dir: Some(PathBuf::from("build/")),
-            edition: CEditions::C11,
-            compiler: CompilerBackend::Clang,
+            edition: config::CEditions::C11,
+            compiler: config::CompilerBackend::Clang,
         },
-        unit: vec![UnitVector {
+        unit: vec![config::UnitVector {
             name: project_name.to_string(),
-            kind: UnitKinds::Bin,
+            kind: config::UnitKinds::Bin,
             src: vec![PathBuf::from("src/")],
             include: Some(vec![PathBuf::from("include/")]),
             deps: None,
@@ -175,7 +170,7 @@ pub fn init_project(dir: &Path, full: bool, stealth: bool, init_git: bool) -> an
             .open(dir.join("Salt.lock"))
         {
             Ok(mut lock_file) => writeln!(lock_file)?,
-            Err(e) if e.kind() == ErrorKind::AlreadyExists => {
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
                 println!("Salt.lock already exists: {}", e);
             }
             Err(e) => {
@@ -218,7 +213,7 @@ pub fn init_project(dir: &Path, full: bool, stealth: bool, init_git: bool) -> an
                 writeln!(main_file, "    return 0;")?;
                 writeln!(main_file, "}}")?;
             }
-            Err(e) if e.kind() == ErrorKind::AlreadyExists => {
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
                 println!("main.c already exists");
             }
             Err(e) => {
