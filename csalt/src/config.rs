@@ -32,7 +32,6 @@ pub enum CEditions {
     C23,
 }
 
-// TODO: Separate this into the build system AND version. This was done for the MVP to keep things simple, as well as focusing only on keystone versions right after a major policy or edition change
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum BuildSystems {
     #[serde(rename = "cmake")]
