@@ -154,14 +154,7 @@ pub fn emit_project(
             .truncate(true)
             .open(cache_dir.join("CMakeLists.txt"))?;
 
-        let output = old_build_sys::emit_build_file_output(
-            plan,
-            &lock.manifest.build.build_sys,
-            &lock.manifest.build.build_sys_ver,
-            base_dir,
-            build_dir,
-            &lock,
-        )?;
+        let output = old_build_sys::emit_build_file_output(plan, base_dir, build_dir, &lock)?;
         writeln!(file, "{}", output)?;
     }
     Ok(())

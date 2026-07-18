@@ -8,18 +8,29 @@ use std::fmt::Write;
 
 pub fn emit_build_file_output(
     build_plan: Vec<PreparedUnit>,
-    build_sys: &BuildSystems,
-    build_sys_ver: &String,
     base_dir: &std::path::Path,
     build_dir: &std::path::Path,
     lock: &crate::SaltLock,
 ) -> anyhow::Result<String> {
     let mut output = String::new();
-    match build_sys {
+
+    let mut clean_sys_ver = lock.manifest.build.build_sys_ver.clone().trim().to_string();
+    match clean_sys_ver.split('.').count() {
+        1 => clean_sys_ver.push_str(".0.0"),
+        2 => clean_sys_ver.push_str(".0"),
+        _ => {}
+    }
+
+    let chosen_build_sys_ver = semver::Version::parse(&clean_sys_ver).map_err(|_| {
+        anyhow::anyhow!(
+            "Invalid semver version: '{}'. Normalized internally to '{}'.",
+            lock.manifest.build.build_sys_ver,
+            clean_sys_ver
+        )
+    })?;
+    match lock.manifest.build.build_sys {
         BuildSystems::CMake => {
-            let chosen_build_sys_ver = semver::Version::parse(build_sys_ver)
-                .map_err(|_| anyhow::anyhow!("Invalid CMake version: '{}'", build_sys_ver))?;
-            let ver_3_15 = semver::VersionReq::parse("3.15")?;
+            let ver_3_15 = semver::VersionReq::parse(">=3.15.0")?;
             if ver_3_15.matches(&chosen_build_sys_ver) {
                 writeln!(
                     output,
@@ -123,9 +134,12 @@ pub fn emit_build_file_output(
                     writeln!(output)?;
                 }
             } else {
-                anyhow::bail!("Unsupported version of CMake: {:?}", build_sys_ver)
+                anyhow::bail!(
+                    "Unsupported version of CMake: {:?}",
+                    lock.manifest.build.build_sys_ver
+                )
             }
         }
     }
-    Ok(output)
+    Ok(output.trim_end().to_string())
 }
