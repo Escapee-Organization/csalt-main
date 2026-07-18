@@ -150,7 +150,7 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
 
         for src_path in &unit.src {
             let target = if src_path.is_absolute() {
-                src_path.clone()
+                src_path.to_path_buf()
             } else {
                 base_dir.join(src_path)
             };
@@ -158,7 +158,7 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
             if !target.exists() {
                 anyhow::bail!(
                     "File '{}' not found for sources in unit '{}'",
-                    target.to_string_lossy(),
+                    target.display(),
                     unit.name
                 );
             }
@@ -181,7 +181,7 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
         if let Some(include) = &unit.include {
             for include_path in include {
                 let target = if include_path.is_absolute() {
-                    include_path.clone()
+                    include_path.to_path_buf()
                 } else {
                     base_dir.join(include_path)
                 };
@@ -191,7 +191,7 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
                 } else {
                     anyhow::bail!(
                         "File '{}' not found for include in unit '{}'",
-                        target.to_string_lossy(),
+                        target.display(),
                         unit.name
                     );
                 }
@@ -220,7 +220,7 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
                     };
 
                     dep_path = Some(if src.is_absolute() {
-                        src.clone()
+                        src.to_path_buf()
                     } else {
                         base_dir.join(src)
                     });
@@ -476,7 +476,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                 if let Ok(absolute_inc) = include_path.canonicalize() {
                     match compiler_backend {
                         CompilerBackend::Msvc | CompilerBackend::ClangCl => {
-                            target_compiler.arg(format!("/I{}", absolute_inc.to_string_lossy()));
+                            target_compiler.arg(format!("/I{}", absolute_inc.display()));
 
                             // --- DEBUG ---
                             if debug_on {
@@ -505,7 +505,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
 
             // --- DEBUG ---
             if debug_on {
-                debug_output_text.push_str(format!(" {}", relative_src.to_string_lossy()).as_str());
+                debug_output_text.push_str(format!(" {}", relative_src.display()).as_str());
             }
         }
 
