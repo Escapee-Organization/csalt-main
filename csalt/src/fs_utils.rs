@@ -41,7 +41,8 @@ pub fn clean_cache_dir(base_dir: Option<PathBuf>) -> anyhow::Result<()> {
     Ok(())
 }
 
-// TODO: Consider using `Salt.lock` to exclude unnecessary file copying
+/// Copies project files to the cache directory, excluding `Salt.lock`, `Salt.toml`, and others
+/// TODO: Consider using `Salt.lock` to exclude unnecessary file copying and cache cleaning
 pub fn copy_project_files(base_dir: &Path, cache_dir: &Path) -> anyhow::Result<()> {
     clean_cache_dir(Some(base_dir.to_path_buf()))?;
     let excluded_dirs = [".csalt", ".git", "build"];
