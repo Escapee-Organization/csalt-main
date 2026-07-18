@@ -2,6 +2,18 @@
 // If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org.
 // Copyright (c) 2026 Escapee Organization
 
+#[cfg(feature = "experimental")]
+use sha2::{Digest, Sha256};
+
+#[cfg(feature = "experimental")]
+pub fn compute_hash(file_string: &str) -> String {
+    let hash_bytes = Sha256::digest(file_string.as_bytes());
+    hash_bytes
+        .iter()
+        .map(|byte| format!("{:02x}", byte))
+        .collect::<String>()
+}
+
 pub fn normalize_semver(version: &str) -> anyhow::Result<semver::Version> {
     let dirty_sys_ver = version.trim();
     if dirty_sys_ver.starts_with(['^', '~', '<', '>', '=']) {

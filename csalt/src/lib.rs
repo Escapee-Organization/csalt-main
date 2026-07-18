@@ -5,8 +5,6 @@
 use crate::cli::{BuildArgs, CompileArgs};
 use crate::config::{BuildSystems, CEditions, CompilerBackend, SaltLock, SaltToml, UnitKinds};
 use anyhow::Context;
-#[cfg(feature = "experimental")]
-use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fs;
 use std::io::{ErrorKind, Write};
@@ -79,15 +77,6 @@ pub fn update_csalt() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("[info] Update completed successfully.");
     Ok(())
-}
-
-#[cfg(feature = "experimental")]
-fn compute_hash(file_string: &str) -> String {
-    let hash_bytes = Sha256::digest(file_string.as_bytes());
-    hash_bytes
-        .iter()
-        .map(|byte| format!("{:02x}", byte))
-        .collect::<String>()
 }
 
 pub fn load_or_init_lock(current_toml: &SaltToml) -> anyhow::Result<SaltLock> {
