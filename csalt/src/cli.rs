@@ -5,7 +5,7 @@
 use clap::{ArgAction, Parser};
 use std::path::PathBuf;
 
-/// csalt - A CLI tool and language that just works with C
+/// csalt - A CLI tool that makes C more modern without compromise
 #[derive(Parser, Debug)]
 #[command(author = "Escapee-Organization", version, about, long_about = None, name = "csalt")]
 pub struct Args {
