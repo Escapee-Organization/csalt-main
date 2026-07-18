@@ -79,31 +79,6 @@ pub fn update_csalt() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-pub fn load_or_init_lock(current_toml: &SaltToml) -> anyhow::Result<SaltLock> {
-    let lock_path = Path::new("Salt.lock");
-    let perfect_salt_lock = SaltLock {
-        lock_version: LOCK_VERSION.to_string(),
-        manifest: current_toml.clone(),
-        files: std::collections::BTreeMap::new(),
-    };
-
-    if !lock_path.is_file() {
-        return Ok(perfect_salt_lock);
-    }
-
-    let contents = fs::read_to_string(lock_path)?;
-    if contents.trim().is_empty() {
-        return Ok(perfect_salt_lock);
-    }
-
-    let lock =
-        serde_json::from_str::<SaltLock>(&contents).context("`Salt.lock` contains invalid JSON")?;
-    if lock.manifest != *current_toml {
-        return Ok(perfect_salt_lock);
-    }
-    Ok(lock)
-}
-
 #[cfg(feature = "experimental")]
 pub fn sync_workspace(
     current_toml: &mut SaltToml,
@@ -134,7 +109,7 @@ pub fn emit_project(
     let salt_toml_str = fs::read_to_string(base_dir.join("Salt.toml"))?;
     let current_toml: SaltToml = toml::from_str(&salt_toml_str)?;
 
-    let lock = load_or_init_lock(&current_toml)?;
+    let lock = fs_utils::load_or_init_lock(&current_toml)?;
 
     if build_file {
         let plan = prepare_build_plan(&lock, base_dir)?;
@@ -289,7 +264,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
     let salt_toml_str = fs::read_to_string(base_dir.join("Salt.toml"))?;
     let current_toml: SaltToml = toml::from_str(&salt_toml_str)?;
 
-    let lock = load_or_init_lock(&current_toml)?;
+    let lock = fs_utils::load_or_init_lock(&current_toml)?;
     // TODO: Consider a more professional output directory
     let out_bin_dir = base_dir.join(match &lock.manifest.build.build_dir {
         Some(dir) => dir,
@@ -724,7 +699,7 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
     let salt_toml_str = fs::read_to_string(base_dir.join("Salt.toml"))?;
     let current_toml: SaltToml = toml::from_str(&salt_toml_str)?;
 
-    let lock = load_or_init_lock(&current_toml)?;
+    let lock = fs_utils::load_or_init_lock(&current_toml)?;
     let mut build_dir = base_dir.join(
         lock.manifest
             .build

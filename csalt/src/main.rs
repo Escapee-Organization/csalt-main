@@ -46,7 +46,7 @@ fn run_csalt() -> anyhow::Result<()> {
             };
             let cache_dir = base_dir.join(".csalt");
             let toml = toml::from_str(&std::fs::read_to_string(base_dir.join("Salt.toml"))?)?;
-            let lock = csalt::load_or_init_lock(&toml)?;
+            let lock = csalt::fs_utils::load_or_init_lock(&toml)?;
             let build_dir = base_dir.join(
                 lock.manifest
                     .build

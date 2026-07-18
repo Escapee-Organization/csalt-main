@@ -2,12 +2,14 @@
 // If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org.
 // Copyright (c) 2026 Escapee Organization
 
+use crate::LOCK_VERSION;
 use crate::cli::NewArgs;
 use crate::config::{
-    BuildSection, BuildSystems, CEditions, CompilerBackend, PackageSection, SaltToml, UnitKinds,
-    UnitVector,
+    BuildSection, BuildSystems, CEditions, CompilerBackend, PackageSection, SaltLock, SaltToml,
+    UnitKinds, UnitVector,
 };
 use crate::verify_command;
+use anyhow::Context;
 use dirs::home_dir;
 use std::fs;
 use std::fs::OpenOptions;
@@ -87,6 +89,31 @@ pub fn copy_project_files(base_dir: &Path, cache_dir: &Path) -> anyhow::Result<(
     }
 
     Ok(())
+}
+
+pub fn load_or_init_lock(current_toml: &SaltToml) -> anyhow::Result<SaltLock> {
+    let lock_path = Path::new("Salt.lock");
+    let perfect_salt_lock = SaltLock {
+        lock_version: LOCK_VERSION.to_string(),
+        manifest: current_toml.clone(),
+        files: std::collections::BTreeMap::new(),
+    };
+
+    if !lock_path.is_file() {
+        return Ok(perfect_salt_lock);
+    }
+
+    let contents = fs::read_to_string(lock_path)?;
+    if contents.trim().is_empty() {
+        return Ok(perfect_salt_lock);
+    }
+
+    let lock =
+        serde_json::from_str::<SaltLock>(&contents).context("`Salt.lock` contains invalid JSON")?;
+    if lock.manifest != *current_toml {
+        return Ok(perfect_salt_lock);
+    }
+    Ok(lock)
 }
 
 pub fn new_project(args: &NewArgs) -> anyhow::Result<()> {
