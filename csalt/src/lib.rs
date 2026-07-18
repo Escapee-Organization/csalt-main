@@ -8,10 +8,10 @@ use anyhow::Context;
 #[cfg(feature = "experimental")]
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+use std::fs;
 use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::{collections, fs};
 
 #[cfg(feature = "experimental")]
 use std::sync::LockResult;
@@ -170,10 +170,12 @@ pub fn emit_project(
 pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Vec<PreparedUnit>> {
     let mut plan = Vec::new();
 
-    let mut known_units: HashMap<String, UnitKinds> = collections::HashMap::new();
-    for unit in &lock.manifest.unit {
-        known_units.insert(unit.name.clone(), unit.kind.clone());
-    }
+    let known_units: HashMap<String, UnitKinds> = lock
+        .manifest
+        .unit
+        .iter()
+        .map(|u| (u.name.clone(), u.kind.clone()))
+        .collect();
 
     for unit in &lock.manifest.unit {
         let mut gathered_src_files = std::collections::BTreeSet::new();
@@ -185,23 +187,22 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
                 base_dir.join(src_path)
             };
 
-            if target.exists() {
-                if target.is_file() {
-                    gathered_src_files.insert(target);
-                } else if target.is_dir() {
-                    for entry in fs::read_dir(target)? {
-                        let path = entry?.path();
-                        if path.is_file() && path.extension().is_some_and(|ext| ext == "c") {
-                            gathered_src_files.insert(path);
-                        }
-                    }
-                }
-            } else {
+            if !target.exists() {
                 anyhow::bail!(
                     "File '{}' not found for sources in unit '{}'",
                     target.to_string_lossy(),
                     unit.name
                 );
+            }
+            if target.is_file() {
+                gathered_src_files.insert(target);
+            } else if target.is_dir() {
+                for entry in fs::read_dir(target)? {
+                    let path = entry?.path();
+                    if path.is_file() && path.extension().is_some_and(|ext| ext == "c") {
+                        gathered_src_files.insert(path);
+                    }
+                }
             }
         }
 
@@ -232,29 +233,31 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
         let mut resolved_dependencies = Vec::new();
         if let Some(deps) = &unit.deps {
             for dep in deps {
-                if let Some(kind) = known_units.get(dep) {
-                    let mut dep_path: Option<PathBuf> = None;
-                    if *kind == UnitKinds::ExtLib || *kind == UnitKinds::ExtDyn {
-                        if let Some(dep_unit) = lock.manifest.unit.iter().find(|u| u.name == *dep)
-                            && let Some(first_src) = dep_unit.src.first()
-                        {
-                            let target = if first_src.is_absolute() {
-                                first_src.clone()
-                            } else {
-                                base_dir.join(first_src)
-                            };
-                            dep_path = Some(target);
-                        }
+                let Some(kind) = known_units.get(dep) else {
+                    continue;
+                };
+                let mut dep_path: Option<PathBuf> = None;
+                if *kind == UnitKinds::ExtLib || *kind == UnitKinds::ExtDyn {
+                    /* NOTE: Since we treat the first file in 'src' as the pre-compiled binary,
+                     * we use it as the dependency path if available.
+                     */
+                    let dep_unit = lock.manifest.unit.iter().find(|u| u.name == *dep);
+                    let first_src = dep_unit.and_then(|u| u.src.first());
 
-                        if dep_path.is_none() {
-                            anyhow::bail!(
-                                "External library unit '{}' must specify the pre-compiled binary file path in 'src'",
-                                dep
-                            );
-                        }
-                    }
-                    resolved_dependencies.push((dep.clone(), kind.clone(), dep_path));
+                    let Some(src) = first_src else {
+                        anyhow::bail!(
+                            "External library unit '{}' must specify the pre-compiled binary file path in 'src'",
+                            dep
+                        );
+                    };
+
+                    dep_path = Some(if src.is_absolute() {
+                        src.clone()
+                    } else {
+                        base_dir.join(src)
+                    });
                 }
+                resolved_dependencies.push((dep.clone(), kind.clone(), dep_path));
             }
         }
 
@@ -262,11 +265,8 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
             name: unit.name.clone(),
             kind: unit.kind.clone(),
             src: gathered_src_files.into_iter().collect(),
-            include: if gathered_include_files.is_empty() {
-                None
-            } else {
-                Some(gathered_include_files.into_iter().collect())
-            },
+            include: (!gathered_include_files.is_empty())
+                .then(|| gathered_include_files.into_iter().collect()),
             resolved_deps: resolved_dependencies,
             compiler_flags: unit.compiler_flags.clone().unwrap_or_default(),
             linker_flags: unit.linker_flags.clone().unwrap_or_default(),
