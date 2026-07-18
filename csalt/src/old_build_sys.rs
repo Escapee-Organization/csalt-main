@@ -36,7 +36,7 @@ pub fn emit_build_file_output(
                 writeln!(
                     output,
                     "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"{}\")",
-                    &build_dir.to_string_lossy().replace('\\', "/")
+                    build_dir.to_string_lossy().replace('\\', "/")
                 )?;
                 writeln!(
                     output,
@@ -108,7 +108,7 @@ pub fn emit_build_file_output(
                     }
 
                     if !unit.resolved_deps.is_empty() {
-                        writeln!(output, "# === DEPS: {} ===", &unit.name)?;
+                        writeln!(output, "# === DEPS: {} ===", unit.name)?;
                         write!(output, "target_link_libraries({} PRIVATE ", unit.name)?;
                         let unit_deps = &unit
                             .resolved_deps
