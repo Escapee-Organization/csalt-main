@@ -665,18 +665,6 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
         }
     }
 
-    // TODO: Transpile the input files, and refactor above loop to use this.
-    // NOTE: .c goes to a check function, .csal goes to a transpile function. The check function should have a bool to turn off features for .c
-    // transpile::transpile(...)?;
-
-    // TODO: Transpile the input files, and refactor above loop to use this.
-    // NOTE: .c goes to a check function, .csal goes to a transpile function. The check function should have a bool to turn off features for .c
-    // transpile::transpile(...)?;
-
-    // TODO: Transpile the input files, and refactor above loop to use this.
-    // NOTE: .c goes to a check function, .csal goes to a transpile function. The check function should have a bool to turn off features for .c
-    // transpile::transpile(...)?;
-
     let updated_lock = serde_json::to_string(&lock)?;
     fs::write(base_dir.join("Salt.lock"), updated_lock)?;
 
