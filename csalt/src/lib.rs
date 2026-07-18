@@ -161,6 +161,15 @@ pub fn emit_project(
     Ok(())
 }
 
+/// Prepares the build plan for the project.
+///
+/// This function takes the lock file and prepares a list of units to correct into a plan.
+/// It first collects all source paths for each unit, both single file and non-recursive directories.
+/// Then, if the user wrote some, it adds all the include directory paths.
+/// Finally, it resolves all dependencies and adds them to the plan.
+///
+/// The way it resolves dependencies is by checking the units defined before it and getting the `kind` of it.
+/// If the kind is `extlib` or `extdyn`, it also adds in the path to link it.
 pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Vec<PreparedUnit>> {
     let mut plan = Vec::new();
 
