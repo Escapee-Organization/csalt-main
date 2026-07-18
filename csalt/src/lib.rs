@@ -90,33 +90,26 @@ fn compute_hash(file_string: &str) -> String {
 }
 
 pub fn load_or_init_lock(current_toml: &SaltToml) -> anyhow::Result<SaltLock> {
-    // NOTE: Boilerplate right now is kept to avoid function abstraction hell
     let lock_path = Path::new("Salt.lock");
+    let perfect_salt_lock = SaltLock {
+        lock_version: LOCK_VERSION.to_string(),
+        manifest: current_toml.clone(),
+        files: std::collections::BTreeMap::new(),
+    };
+
     if !lock_path.is_file() {
-        return Ok(SaltLock {
-            lock_version: LOCK_VERSION.to_string(),
-            manifest: current_toml.clone(),
-            files: std::collections::BTreeMap::new(),
-        });
+        return Ok(perfect_salt_lock);
     }
 
     let contents = fs::read_to_string(lock_path)?;
     if contents.trim().is_empty() {
-        return Ok(SaltLock {
-            lock_version: LOCK_VERSION.to_string(),
-            manifest: current_toml.clone(),
-            files: std::collections::BTreeMap::new(),
-        });
+        return Ok(perfect_salt_lock);
     }
 
     let lock =
         serde_json::from_str::<SaltLock>(&contents).context("`Salt.lock` contains invalid JSON")?;
     if lock.manifest != *current_toml {
-        return Ok(SaltLock {
-            lock_version: LOCK_VERSION.to_string(),
-            manifest: current_toml.clone(),
-            files: std::collections::BTreeMap::new(),
-        });
+        return Ok(perfect_salt_lock);
     }
     Ok(lock)
 }
