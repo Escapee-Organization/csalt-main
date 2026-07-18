@@ -136,7 +136,7 @@ pub fn init_project(dir: &Path, full: bool, stealth: bool, init_git: bool) -> an
             toml::to_string_pretty(&toml_content)?,
         )?;
     } else {
-        toml_content.validate()?;
+        toml_content.validate(dir)?;
         println!("Salt.toml already exists, skipping creation.");
     }
 

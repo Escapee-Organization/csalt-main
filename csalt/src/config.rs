@@ -165,7 +165,7 @@ pub struct SaltToml {
 
 // ------------------ FUNCTIONS ------------------
 impl SaltToml {
-    pub fn validate(&self) -> anyhow::Result<()> {
+    pub fn validate(&self, base_dir: &std::path::Path) -> anyhow::Result<()> {
         // 1. Ensure the package name isn't blank
         if self.package.name.trim().is_empty() {
             anyhow::bail!("Package name cannot be empty in Salt.toml");
@@ -225,7 +225,10 @@ impl SaltToml {
             }
 
             if let Some(includes) = &target.include {
-                for include in includes {
+                for include in includes.iter().map(|i| base_dir.join(i)) {
+                    if !include.exists() {
+                        anyhow::bail!("Include '{}' does not exist", include.display());
+                    }
                     if include.is_file() {
                         anyhow::bail!("Include '{}' is a file, not a directory", include.display());
                     }
