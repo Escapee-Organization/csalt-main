@@ -314,7 +314,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
 
     if !args.backend_flags.is_empty() {
         let target_compiler = if let Some(backend) = &args.backend {
-            CompilerBackend::from_string(backend.as_str())?
+            CompilerBackend::try_from(backend.as_str())?
         } else {
             lock.manifest.build.compiler
         };
@@ -339,12 +339,12 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
 
     // Read in the target compiler from `Salt.lock`. CLI flag overrides
     let compiler_backend: CompilerBackend = if let Some(backend) = &args.backend {
-        CompilerBackend::from_string(backend.as_str())?
+        CompilerBackend::try_from(backend.as_str())?
     } else {
         lock.manifest.build.compiler.clone()
     };
 
-    verify_command(compiler_backend.to_string())?;
+    verify_command(compiler_backend.to_string().as_str())?;
     let build_plan = prepare_build_plan(&lock, &base_dir)?;
     let debug_on = false; // Disable debug output from existing, but keep the code so it can be enabled later
 
@@ -403,7 +403,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
         let mut debug_output_text = String::new();
         if debug_on {
             debug_output_text.push_str("[DEBUG COMMAND] ");
-            debug_output_text.push_str(compiler_backend.to_string());
+            debug_output_text.push_str(compiler_backend.to_string().as_str());
         }
 
         match compiler_backend {
@@ -421,7 +421,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                 }
 
                 target_compiler
-                    .arg(format!("-std={}", lock.manifest.build.edition.to_string()))
+                    .arg(format!("-std={}", lock.manifest.build.edition))
                     .args(unit.compiler_flags);
 
                 match unit.kind {
@@ -749,7 +749,7 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
     )?;
 
     let backend = if let Some(backend) = &build_args.backend {
-        BuildSystems::from_string(backend)?
+        BuildSystems::try_from(backend.as_str())?
     } else {
         lock.manifest.build.build_sys.clone()
     };
@@ -797,7 +797,7 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
                 .arg(&build_dir)
                 .arg(format!(
                     "-DCMAKE_C_COMPILER={}",
-                    lock.manifest.build.compiler.to_string()
+                    lock.manifest.build.compiler
                 ));
 
             let config_status = cmake_configure.status()?;

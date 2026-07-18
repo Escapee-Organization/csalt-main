@@ -49,39 +49,55 @@ pub enum CompilerBackend {
 }
 
 // --------- DATA STRUCTURES -> FUNCTIONS ---------
-impl CEditions {
-    pub fn to_string(&self) -> &str {
-        match self {
+impl std::fmt::Display for CEditions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
             Self::C89 => "c89",
             Self::C99 => "c99",
             Self::C11 => "c11",
             Self::C17 => "c17",
             Self::C23 => "c23",
-        }
+        };
+        write!(f, "{}", s)
     }
 }
 
 impl BuildSystems {
-    pub fn from_string(s: &str) -> anyhow::Result<Self> {
-        match s.to_lowercase().as_str() {
-            "cmake" => Ok(Self::CMake),
-            _ => anyhow::bail!("unknown build system"),
-        }
-    }
-
-    pub fn to_string(&self) -> &str {
-        match self {
-            Self::CMake => "cmake",
-        }
-    }
-
     pub fn generate_command(&self) -> Command {
         Command::new(self.to_string())
     }
 }
 
+impl std::fmt::Display for BuildSystems {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::CMake => "cmake",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+impl TryFrom<&str> for BuildSystems {
+    type Error = anyhow::Error;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        match s.to_lowercase().as_str() {
+            "cmake" => Ok(Self::CMake),
+            _ => anyhow::bail!("unknown build system"),
+        }
+    }
+}
+
 impl CompilerBackend {
-    pub fn from_string(s: &str) -> anyhow::Result<Self> {
+    pub fn generate_command(&self) -> Command {
+        Command::new(self.to_string())
+    }
+}
+
+impl TryFrom<&str> for CompilerBackend {
+    type Error = anyhow::Error;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
         match s.to_lowercase().as_str() {
             "clang" => Ok(Self::Clang),
             "gcc" => Ok(Self::Gcc),
@@ -91,19 +107,18 @@ impl CompilerBackend {
             _ => anyhow::bail!("unknown backend"),
         }
     }
+}
 
-    pub fn to_string(&self) -> &str {
-        match self {
+impl std::fmt::Display for CompilerBackend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
             Self::Clang => "clang",
             Self::Gcc => "gcc",
             Self::Zig => "zig",
             Self::Msvc => "cl",
             Self::ClangCl => "clang-cl",
-        }
-    }
-
-    pub fn generate_command(&self) -> Command {
-        Command::new(self.to_string())
+        };
+        write!(f, "{}", s)
     }
 }
 
