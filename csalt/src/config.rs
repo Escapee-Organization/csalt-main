@@ -242,27 +242,14 @@ impl SaltToml {
         }
 
         if self.build.build_sys == BuildSystems::CMake {
-            let mut version_str = self.build.build_sys_ver.trim().to_string();
-            if version_str.split('.').count() == 2 {
-                version_str.push_str(".0"); // Append a dummy patch version if they just wrote "3.15"
-            }
+            let version = crate::util::normalize_semver(&self.build.build_sys_ver)?;
 
-            match semver::Version::parse(&version_str) {
-                Ok(parsed_version) => {
-                    let minimum_required = semver::Version::parse("3.15.0")?;
-                    if parsed_version < minimum_required {
-                        anyhow::bail!(
-                            "C-Salt requires CMake version 3.15.0 or higher. Found: {}",
-                            self.build.build_sys_ver
-                        );
-                    }
-                }
-                Err(_) => {
-                    anyhow::bail!(
-                        "Invalid CMake version format '{}'. Please use standard SemVer (e.g., '3.15' or '3.28.1')",
-                        self.build.build_sys_ver
-                    );
-                }
+            let minimum_required = semver::Version::parse("3.15.0")?;
+            if version < minimum_required {
+                anyhow::bail!(
+                    "C-Salt requires CMake version 3.15.0 or higher. Found: {}",
+                    self.build.build_sys_ver
+                );
             }
         }
 

@@ -23,6 +23,7 @@ pub mod config;
 pub mod fs_utils;
 pub mod old_build_sys;
 pub mod transpile;
+pub mod util;
 
 // ---------------------- DATA ----------------------
 const LOCK_VERSION: &str = "0.1.0";

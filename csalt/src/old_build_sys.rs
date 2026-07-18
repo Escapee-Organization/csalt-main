@@ -14,20 +14,7 @@ pub fn emit_build_file_output(
 ) -> anyhow::Result<String> {
     let mut output = String::new();
 
-    let mut clean_sys_ver = lock.manifest.build.build_sys_ver.clone().trim().to_string();
-    match clean_sys_ver.split('.').count() {
-        1 => clean_sys_ver.push_str(".0.0"),
-        2 => clean_sys_ver.push_str(".0"),
-        _ => {}
-    }
-
-    let chosen_build_sys_ver = semver::Version::parse(&clean_sys_ver).map_err(|_| {
-        anyhow::anyhow!(
-            "Invalid semver version: '{}'. Normalized internally to '{}'.",
-            lock.manifest.build.build_sys_ver,
-            clean_sys_ver
-        )
-    })?;
+    let chosen_build_sys_ver = crate::util::normalize_semver(&lock.manifest.build.build_sys_ver)?;
     match lock.manifest.build.build_sys {
         BuildSystems::CMake => {
             let ver_3_15 = semver::VersionReq::parse(">=3.15.0")?;
