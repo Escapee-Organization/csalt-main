@@ -669,6 +669,14 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
     // NOTE: .c goes to a check function, .csal goes to a transpile function. The check function should have a bool to turn off features for .c
     // transpile::transpile(...)?;
 
+    // TODO: Transpile the input files, and refactor above loop to use this.
+    // NOTE: .c goes to a check function, .csal goes to a transpile function. The check function should have a bool to turn off features for .c
+    // transpile::transpile(...)?;
+
+    // TODO: Transpile the input files, and refactor above loop to use this.
+    // NOTE: .c goes to a check function, .csal goes to a transpile function. The check function should have a bool to turn off features for .c
+    // transpile::transpile(...)?;
+
     let updated_lock = serde_json::to_string(&lock)?;
     fs::write(base_dir.join("Salt.lock"), updated_lock)?;
 
@@ -709,9 +717,9 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
     );
     fs::create_dir_all(&build_dir)?;
     build_dir = build_dir.canonicalize()?;
-    emit_project(
-        &base_dir, &cache_dir, &build_dir, /* build_file */ false,
-    )?;
+
+    let build_file_bool = false;
+    emit_project(&base_dir, &cache_dir, &build_dir, build_file_bool)?;
 
     let backend = if let Some(backend) = &build_args.backend {
         BuildSystems::try_from(backend.as_str())?
@@ -749,11 +757,9 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
                     "[info] No manual configuration found. Generating Fresh CMakeLists.txt..."
                 );
 
-                emit_project(
-                    &base_dir, &cache_dir, &build_dir, /* build_file */ true,
-                )?;
+                let build_file_bool = true;
+                emit_project(&base_dir, &cache_dir, &build_dir, build_file_bool)?;
             }
-            // NOTE: Consider using the compiler option to choose which one to search for first
 
             let mut cmake_configure = std::process::Command::new("cmake");
             cmake_configure
