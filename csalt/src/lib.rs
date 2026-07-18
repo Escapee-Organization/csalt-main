@@ -132,6 +132,7 @@ pub fn sync_workspace(
     Ok(updated_files)
 }
 
+/// Emits all generated assets to the cache directory.
 pub fn emit_project(
     base_dir: &Path,
     cache_dir: &Path,
