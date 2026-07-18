@@ -24,7 +24,8 @@ pub mod fs_utils;
 pub mod old_build_sys;
 pub mod transpile;
 
-// ----------------- DATA STRUCTURES -----------------
+// ---------------------- DATA ----------------------
+const LOCK_VERSION: &str = "0.1.0";
 
 pub struct PreparedUnit {
     pub name: String,
@@ -62,8 +63,6 @@ fn verify_command(command_name: &str) -> anyhow::Result<()> {
         }
     }
 }
-
-const LOCK_VERSION: &str = "0.1.0";
 
 // TODO: Implement GitHub release tags and actions
 #[cfg(feature = "experimental")]
