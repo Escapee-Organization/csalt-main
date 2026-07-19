@@ -10,15 +10,20 @@ use std::process::Command;
 // ================== SALT.TOML ==================
 
 // --------------- DATA STRUCTURES ---------------
+
+/// The kind of unit to build.
+/// - `lib`: A static library
+/// - `dyn`: A dynamic library
+/// - `bin`: A binary executable
+/// - `extlib`: A pre-compiled static library
+/// - `extdyn`: A pre-compiled dynamic library
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum UnitKinds {
     Lib,
     Dyn,
     Bin,
-    /// Pre-compiled library
     ExtLib,
-    /// Pre-compiled dynamic library
     ExtDyn,
 }
 
