@@ -336,36 +336,12 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
         } else {
             out_bin_dir.join(&unit.name)
         };
-        let obj_ext = match compiler_backend {
-            CompilerBackend::Gcc | CompilerBackend::Zig | CompilerBackend::Clang => "o",
-            CompilerBackend::Msvc | CompilerBackend::ClangCl => "obj",
-        };
-        let lib_ext = match compiler_backend {
-            CompilerBackend::Msvc | CompilerBackend::ClangCl => "lib",
-            CompilerBackend::Clang | CompilerBackend::Gcc | CompilerBackend::Zig => "a",
-        };
-        let lib_name = match compiler_backend {
-            CompilerBackend::Msvc | CompilerBackend::ClangCl => {
-                format!("{}.{}", unit.name, lib_ext)
-            }
-            CompilerBackend::Clang | CompilerBackend::Gcc | CompilerBackend::Zig => {
-                format!("lib{}.{}", unit.name, lib_ext)
-            }
-        };
+        let obj_ext = compiler_backend.get_object_extension();
+        let lib_name = compiler_backend.get_library_name(&unit.name);
         let out_lib = cache_dir.join(&lib_name);
 
-        let dyn_ext = if cfg!(target_os = "windows") {
-            "dll"
-        } else if cfg!(target_os = "macos") {
-            "dylib"
-        } else {
-            "so"
-        };
-        let dyn_name = if cfg!(target_os = "windows") {
-            format!("{}.{}", unit.name, dyn_ext)
-        } else {
-            format!("lib{}.{}", unit.name, dyn_ext)
-        };
+        let dyn_ext = util::get_dynamic_library_extension();
+        let dyn_name = util::get_dynamic_library_name(&unit.name);
         let out_dyn = cache_dir.join(&dyn_name);
 
         match compiler_backend {

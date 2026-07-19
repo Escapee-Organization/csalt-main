@@ -97,6 +97,24 @@ impl CompilerBackend {
     pub fn generate_command(&self) -> Command {
         Command::new(self.to_string())
     }
+
+    pub fn get_object_extension(&self) -> &str {
+        match self {
+            Self::Clang | Self::Gcc | Self::Zig => "o",
+            Self::Msvc | Self::ClangCl => "obj",
+        }
+    }
+
+    fn get_library_extension(&self) -> &str {
+        match self {
+            Self::Msvc | Self::ClangCl => "lib",
+            Self::Clang | Self::Gcc | Self::Zig => "a",
+        }
+    }
+
+    pub fn get_library_name(&self, unit_name: &str) -> String {
+        format!("{}.{}", unit_name, self.get_library_extension())
+    }
 }
 
 impl TryFrom<&str> for CompilerBackend {

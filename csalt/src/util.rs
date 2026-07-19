@@ -48,3 +48,21 @@ pub fn clean_windows_path(path: std::path::PathBuf) -> std::path::PathBuf {
     }
     path
 }
+
+pub fn get_dynamic_library_extension() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "dll"
+    } else if cfg!(target_os = "macos") {
+        "dylib"
+    } else {
+        "so"
+    }
+}
+
+pub fn get_dynamic_library_name(unit_name: &str) -> String {
+    if cfg!(target_os = "windows") {
+        format!("{}.{}", unit_name, get_dynamic_library_extension())
+    } else {
+        format!("lib{}.{}", unit_name, get_dynamic_library_extension())
+    }
+}
