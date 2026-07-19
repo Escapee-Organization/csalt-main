@@ -270,7 +270,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
     // TODO: Consider a more professional output directory
     let out_bin_dir = base_dir.join(match &lock.manifest.build.build_dir {
         Some(dir) => dir,
-        None => Path::new("build/"),
+        None => Path::new("build"),
     });
     emit_project(
         &base_dir,
