@@ -54,7 +54,7 @@ fn verify_command(command_name: &str) -> anyhow::Result<()> {
         }
         Err(e) if e.kind() == ErrorKind::NotFound => {
             // The binary is definitively missing from the system
-            Err(anyhow::anyhow!("Compiler '{}' not found", command_name))
+            Err(anyhow::anyhow!("Command '{}' not found", command_name))
         }
         Err(_) => {
             // It exists, but we ran into a permission/OS blockade (which counts as existing!)
