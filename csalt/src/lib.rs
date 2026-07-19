@@ -204,6 +204,7 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
                 let Some(kind) = known_units.get(dep) else {
                     continue;
                 };
+
                 let mut dep_path: Option<PathBuf> = None;
                 if *kind == UnitKinds::ExtLib || *kind == UnitKinds::ExtDyn {
                     /* NOTE: Since we treat the first file in 'src' as the pre-compiled binary,
@@ -297,6 +298,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
     }
 
     fs::create_dir_all(&out_bin_dir)?;
+
     let in_bin_dir = cache_dir.join(
         util::clean_windows_path(out_bin_dir.clone())
             .strip_prefix(util::clean_windows_path(base_dir.clone()))
