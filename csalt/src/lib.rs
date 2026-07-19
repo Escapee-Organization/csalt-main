@@ -306,7 +306,6 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
     );
     fs::create_dir_all(&in_bin_dir)?;
 
-    // Read in the target compiler from `Salt.lock`. CLI flag overrides
     let compiler_backend: CompilerBackend = if let Some(backend) = &args.backend {
         CompilerBackend::try_from(backend.as_str())?
     } else {

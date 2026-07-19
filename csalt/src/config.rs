@@ -189,7 +189,6 @@ pub struct SaltToml {
 // ------------------ FUNCTIONS ------------------
 impl SaltToml {
     pub fn validate(&self, base_dir: &std::path::Path) -> anyhow::Result<()> {
-        // 1. Ensure the package name isn't blank
         if self.package.name.trim().is_empty() {
             anyhow::bail!("Package name cannot be empty in Salt.toml");
         }
@@ -259,7 +258,6 @@ impl SaltToml {
             }
         }
 
-        // 3. Validate build system and compiler
         if self.build.edition == CEditions::C89 && self.build.compiler == CompilerBackend::Msvc {
             anyhow::bail!("C89 is not supported with MSVC");
         }
