@@ -197,7 +197,7 @@ impl SaltToml {
             anyhow::bail!("At least one unit must be defined in Salt.toml");
         }
 
-        // 2. Verify target definitions aren't broken and are in the correct order
+        // Verify target definitions aren't broken and are in the correct order
         /*
          * We must ensure that lib and dyn are before bin in the unit vector
          * Also ensure any deps are declared before their use
