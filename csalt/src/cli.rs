@@ -97,7 +97,6 @@ pub struct CompileArgs {
     #[arg(long = "zig-target", short = 'z')]
     pub zig_target: Option<String>,
 
-    #[cfg(feature = "experimental")]
     /// Debug mode, enables debug output
     #[arg(long = "debug")]
     pub debug: bool,

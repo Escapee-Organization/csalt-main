@@ -315,7 +315,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
 
     verify_command(compiler_backend.to_string().as_str())?;
     let build_plan = prepare_build_plan(&lock, &base_dir)?;
-    let debug_on = false; // Disable debug output from existing, but keep the code so it can be enabled later
+    let debug_on = args.debug;
 
     for unit in build_plan {
         if unit.kind == UnitKinds::ExtLib || unit.kind == UnitKinds::ExtDyn {
@@ -368,24 +368,12 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
         };
         let out_dyn = cache_dir.join(&dyn_name);
 
-        // --- DEBUG ---
-        let mut debug_output_text = String::new();
-        if debug_on {
-            debug_output_text.push_str("[DEBUG COMMAND] ");
-            debug_output_text.push_str(compiler_backend.to_string().as_str());
-        }
-
         match compiler_backend {
             CompilerBackend::Gcc | CompilerBackend::Clang | CompilerBackend::Zig => {
                 if compiler_backend == CompilerBackend::Zig {
                     target_compiler.arg("cc");
                     if let Some(target) = &args.zig_target {
                         target_compiler.arg("-target").arg(target);
-                    }
-
-                    // --- DEBUG ---
-                    if debug_on {
-                        debug_output_text.push_str(" cc");
                     }
                 }
 
@@ -397,31 +385,14 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                     UnitKinds::ExtLib | UnitKinds::ExtDyn => {}
                     UnitKinds::Bin => {
                         target_compiler.arg("-c");
-
-                        // --- DEBUG ---
-                        if debug_on {
-                            debug_output_text.push_str(" -o ");
-                            debug_output_text.push_str(&output_executable.to_string_lossy());
-                        }
                     }
                     UnitKinds::Dyn => {
                         target_compiler.arg("-c");
-
-                        // --- DEBUG ---
-                        if debug_on {
-                            debug_output_text.push_str(" -shared -fPIC -o ");
-                            debug_output_text.push_str(&out_dyn.to_string_lossy());
-                        }
                     }
                     UnitKinds::Lib => {
                         // Static libraries are archives of individual object (.o) files
                         // We instruct GCC to compile source targets to relocatable objects first (-c)
                         target_compiler.arg("-c");
-
-                        // --- DEBUG ---
-                        if debug_on {
-                            debug_output_text.push_str(" -c");
-                        }
                     }
                 }
             }
@@ -443,33 +414,14 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                     UnitKinds::ExtLib | UnitKinds::ExtDyn => {}
                     UnitKinds::Bin => {
                         target_compiler.arg(format!("/Fe:{}", output_executable.to_string_lossy()));
-
-                        // --- DEBUG ---
-                        if debug_on {
-                            debug_output_text.push_str(
-                                format!("/Fe:{}", output_executable.to_string_lossy()).as_str(),
-                            );
-                        }
                     }
                     UnitKinds::Dyn => {
                         target_compiler
                             .arg("/LD")
                             .arg(format!("/Fe:{}", out_dyn.to_string_lossy()));
-
-                        // --- DEBUG ---
-                        if debug_on {
-                            debug_output_text.push_str(
-                                format!("/LD /Fe:{}", out_dyn.to_string_lossy()).as_str(),
-                            );
-                        }
                     }
                     UnitKinds::Lib => {
                         target_compiler.arg("/c");
-
-                        // --- DEBUG ---
-                        if debug_on {
-                            debug_output_text.push_str(" /c");
-                        }
                     }
                 }
             }
@@ -481,23 +433,9 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                     match compiler_backend {
                         CompilerBackend::Msvc | CompilerBackend::ClangCl => {
                             target_compiler.arg(format!("/I{}", absolute_inc.display()));
-
-                            // --- DEBUG ---
-                            if debug_on {
-                                debug_output_text.push_str(
-                                    format!(" /I{}", absolute_inc.to_string_lossy()).as_str(),
-                                );
-                            }
                         }
                         _ => {
                             target_compiler.arg("-I").arg(&absolute_inc);
-
-                            // --- DEBUG ---
-                            if debug_on {
-                                debug_output_text.push_str(
-                                    format!(" -I{}", absolute_inc.to_string_lossy()).as_str(),
-                                );
-                            }
                         }
                     }
                 }
@@ -506,11 +444,11 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
         for src_file in &unit.src {
             let relative_src = src_file.strip_prefix(&base_dir)?;
             target_compiler.arg(relative_src);
+        }
 
-            // --- DEBUG ---
-            if debug_on {
-                debug_output_text.push_str(format!(" {}", relative_src.display()).as_str());
-            }
+        // --- DEBUG ---
+        if debug_on {
+            println!("[DEBUG compiler] {:?}", target_compiler);
         }
 
         let status = target_compiler.current_dir(&cache_dir).status()?;
@@ -530,30 +468,12 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                     let mut cmd = std::process::Command::new("lib");
                     cmd.arg(format!("/OUT:{}", out_lib.to_string_lossy()));
 
-                    // --- DEBUG ---
-                    if debug_on {
-                        debug_output_text.push_str(
-                            format!(
-                                "lib /OUT:{}",
-                                cache_dir
-                                    .join(format!("{}.lib", unit.name))
-                                    .to_string_lossy()
-                            )
-                            .as_str(),
-                        );
-                    }
-
                     cmd
                 }
                 CompilerBackend::Gcc | CompilerBackend::Zig | CompilerBackend::Clang => {
                     let mut cmd = std::process::Command::new("ar");
                     cmd.arg("rcs");
                     cmd.arg(&lib_name);
-
-                    // --- DEBUG ---
-                    if debug_on {
-                        debug_output_text.push_str(format!("ar rcs lib{}.a", unit.name).as_str());
-                    }
 
                     cmd
                 }
@@ -567,6 +487,11 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                     let object_path = cache_dir.join(object_file_name);
                     ar_command.arg(object_path);
                 }
+            }
+
+            // --- DEBUG --
+            if debug_on {
+                println!("[DEBUG archiver] {:?}", ar_command);
             }
 
             let ar_status = ar_command.current_dir(&cache_dir).status()?;
@@ -653,6 +578,10 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                 CompilerBackend::Msvc | CompilerBackend::ClangCl => {}
             }
 
+            // --- DEBUG --
+            if debug_on {
+                println!("[DEBUG linker] {:?}", link_command);
+            }
             let status = link_command.current_dir(&cache_dir).status()?;
             if !status.success() {
                 anyhow::bail!("Failed to link unit '{}'", unit.name);
@@ -661,11 +590,6 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
             if unit.kind == UnitKinds::Dyn {
                 fs::copy(&out_dyn, out_bin_dir.join(&dyn_name))?;
             }
-        }
-
-        // --- DEBUG ---
-        if debug_on {
-            dbg!("{}", debug_output_text);
         }
     }
 
