@@ -149,11 +149,11 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
         let mut gathered_src_files = std::collections::BTreeSet::new();
 
         for src_path in &unit.src {
-            let target = if src_path.is_absolute() {
+            let target = util::clean_windows_path(if src_path.is_absolute() {
                 src_path.to_path_buf()
             } else {
                 base_dir.join(src_path)
-            };
+            });
 
             if !target.exists() {
                 anyhow::bail!(
@@ -180,11 +180,11 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
 
         if let Some(include) = &unit.include {
             for include_path in include {
-                let target = if include_path.is_absolute() {
+                let target = util::clean_windows_path(if include_path.is_absolute() {
                     include_path.to_path_buf()
                 } else {
                     base_dir.join(include_path)
-                };
+                });
 
                 if target.exists() {
                     gathered_include_files.insert(target);
@@ -219,11 +219,11 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
                         );
                     };
 
-                    dep_path = Some(if src.is_absolute() {
+                    dep_path = Some(util::clean_windows_path(if src.is_absolute() {
                         src.to_path_buf()
                     } else {
                         base_dir.join(src)
-                    });
+                    }));
                 }
                 resolved_dependencies.push((dep.clone(), kind.clone(), dep_path));
             }
@@ -254,10 +254,12 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
 pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
     println!("[info] Compiling project...");
 
-    let base_dir = match &args.path {
+    let raw_base_dir = match &args.path {
         Some(path) => path.canonicalize()?,
         None => std::env::current_dir()?,
     };
+
+    let base_dir = util::clean_windows_path(raw_base_dir);
     fs_utils::verify_workspace(&base_dir)?;
     let cache_dir = base_dir.join(".csalt");
 
@@ -296,8 +298,8 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
 
     fs::create_dir_all(&out_bin_dir)?;
     let in_bin_dir = cache_dir.join(
-        out_bin_dir
-            .strip_prefix(&base_dir)
+        util::clean_windows_path(out_bin_dir.clone())
+            .strip_prefix(util::clean_windows_path(base_dir.clone()))
             .context("Failed to create cache mirror of build directory")?,
     );
     fs::create_dir_all(&in_bin_dir)?;

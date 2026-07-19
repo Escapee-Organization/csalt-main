@@ -40,3 +40,11 @@ pub fn normalize_semver(version: &str) -> anyhow::Result<semver::Version> {
 
     Ok(normalized_semver)
 }
+
+pub fn clean_windows_path(path: std::path::PathBuf) -> std::path::PathBuf {
+    let path_str = path.to_string_lossy();
+    if let Some(stripped) = path_str.strip_prefix(r"\\?\") {
+        return std::path::PathBuf::from(stripped);
+    }
+    path
+}
