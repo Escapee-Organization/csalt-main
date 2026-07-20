@@ -113,6 +113,9 @@ impl CompilerBackend {
     }
 
     pub fn get_library_name(&self, unit_name: &str) -> String {
+        if !cfg!(target_os = "windows") {
+            return format!("lib{}.{}", unit_name, self.get_library_extension());
+        }
         format!("{}.{}", unit_name, self.get_library_extension())
     }
 }
