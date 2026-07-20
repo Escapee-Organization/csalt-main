@@ -5,13 +5,11 @@
 use crate::cli::{BuildArgs, CompileArgs};
 use crate::config::{BuildSystems, CEditions, CompilerBackend, SaltLock, SaltToml, UnitKinds};
 use anyhow::Context;
-#[cfg(feature = "experimental")]
-use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+use std::fs;
 use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::{collections, fs};
 
 #[cfg(feature = "experimental")]
 use std::sync::LockResult;
@@ -21,9 +19,12 @@ use toml;
 pub mod cli;
 pub mod config;
 pub mod fs_utils;
+pub mod old_build_sys;
 pub mod transpile;
+pub mod util;
 
-// ----------------- DATA STRUCTURES -----------------
+// ---------------------- DATA ----------------------
+const LOCK_VERSION: &str = "0.1.0";
 
 pub struct PreparedUnit {
     pub name: String,
@@ -53,7 +54,7 @@ fn verify_command(command_name: &str) -> anyhow::Result<()> {
         }
         Err(e) if e.kind() == ErrorKind::NotFound => {
             // The binary is definitively missing from the system
-            Err(anyhow::anyhow!("Compiler '{}' not found", command_name))
+            Err(anyhow::anyhow!("Command '{}' not found", command_name))
         }
         Err(_) => {
             // It exists, but we ran into a permission/OS blockade (which counts as existing!)
@@ -61,8 +62,6 @@ fn verify_command(command_name: &str) -> anyhow::Result<()> {
         }
     }
 }
-
-const LOCK_VERSION: &str = "0.1.0";
 
 // TODO: Implement GitHub release tags and actions
 #[cfg(feature = "experimental")]
@@ -78,47 +77,6 @@ pub fn update_csalt() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("[info] Update completed successfully.");
     Ok(())
-}
-
-#[cfg(feature = "experimental")]
-fn compute_hash(file_string: &str) -> String {
-    let hash_bytes = Sha256::digest(file_string.as_bytes());
-    hash_bytes
-        .iter()
-        .map(|byte| format!("{:02x}", byte))
-        .collect::<String>()
-}
-
-pub fn load_or_init_lock(current_toml: &SaltToml) -> anyhow::Result<SaltLock> {
-    // NOTE: Boilerplate right now is kept to avoid function abstraction hell
-    let lock_path = Path::new("Salt.lock");
-    if !lock_path.is_file() {
-        return Ok(SaltLock {
-            lock_version: LOCK_VERSION.to_string(),
-            manifest: current_toml.clone(),
-            files: std::collections::BTreeMap::new(),
-        });
-    }
-
-    let contents = fs::read_to_string(lock_path)?;
-    if contents.trim().is_empty() {
-        return Ok(SaltLock {
-            lock_version: LOCK_VERSION.to_string(),
-            manifest: current_toml.clone(),
-            files: std::collections::BTreeMap::new(),
-        });
-    }
-
-    let lock =
-        serde_json::from_str::<SaltLock>(&contents).context("`Salt.lock` contains invalid JSON")?;
-    if lock.manifest != *current_toml {
-        return Ok(SaltLock {
-            lock_version: LOCK_VERSION.to_string(),
-            manifest: current_toml.clone(),
-            files: std::collections::BTreeMap::new(),
-        });
-    }
-    Ok(lock)
 }
 
 #[cfg(feature = "experimental")]
@@ -139,171 +97,78 @@ pub fn sync_workspace(
     Ok(updated_files)
 }
 
+/// Emits all generated assets to the cache directory.
 pub fn emit_project(
     base_dir: &Path,
     cache_dir: &Path,
     build_dir: &Path,
-    build_file: bool,
+    plan: Option<Vec<PreparedUnit>>,
 ) -> anyhow::Result<()> {
     fs_utils::verify_workspace(base_dir)?;
     fs_utils::copy_project_files(base_dir, cache_dir)?;
     let salt_toml_str = fs::read_to_string(base_dir.join("Salt.toml"))?;
     let current_toml: SaltToml = toml::from_str(&salt_toml_str)?;
 
-    let lock = load_or_init_lock(&current_toml)?;
+    let lock = fs_utils::load_or_init_lock(&current_toml)?;
 
-    if build_file {
-        let plan = prepare_build_plan(&lock, base_dir)?;
-
+    if let Some(plan) = plan {
         let mut file = fs::OpenOptions::new()
             .write(true)
             .create(true)
             .truncate(true)
             .open(cache_dir.join("CMakeLists.txt"))?;
 
-        writeln!(
-            file,
-            "cmake_minimum_required(VERSION {})",
-            lock.manifest.build.build_sys_ver
-        )?;
-        writeln!(file, "project({} LANGUAGES C)", lock.manifest.package.name)?;
-        writeln!(
-            file,
-            "# !![ REMOVE the following line (output directory) if moving to main directory ]!!"
-        )?;
-        writeln!(
-            file,
-            "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"{}\")",
-            &build_dir.to_string_lossy().replace('\\', "/")
-        )?;
-        writeln!(
-            file,
-            "set(CMAKE_C_STANDARD {})\nset(CMAKE_C_STANDARD_REQUIRED ON)",
-            lock.manifest.build.edition.to_string().replace('c', "")
-        )?;
-        writeln!(file)?;
-
-        for unit in &plan {
-            let mut unit_paths = Vec::new();
-            for path in &unit.src {
-                match path.strip_prefix(base_dir) {
-                    Ok(relative_path) => {
-                        unit_paths.push(format!(
-                            "\"{}\"",
-                            relative_path.to_string_lossy().replace('\\', "/")
-                        ));
-                    }
-                    Err(_) => {
-                        unit_paths
-                            .push(format!("\"{}\"", path.to_string_lossy().replace('\\', "/")));
-                    }
-                }
-                let src_paths = unit_paths.join(" ");
-
-                match unit.kind {
-                    UnitKinds::Bin => {
-                        writeln!(file, "# === UNIT: bin {} ===", unit.name)?;
-                        writeln!(file, "add_executable({} {})", unit.name, src_paths)?;
-                    }
-                    UnitKinds::Lib => {
-                        writeln!(file, "# === UNIT: lib {} ===", unit.name)?;
-                        writeln!(file, "add_library({} STATIC {})", unit.name, src_paths)?;
-                    }
-                    UnitKinds::Dyn => {
-                        writeln!(file, "# === UNIT: dyn {} ===", unit.name)?;
-                        writeln!(file, "add_library({} SHARED {})", unit.name, src_paths)?;
-                    }
-                    UnitKinds::ExtLib => {
-                        writeln!(file, "# === UNIT: extlib {} ===", unit.name)?;
-                        // 1. Declare the target as an IMPORTED STATIC library
-                        writeln!(file, "add_library({} STATIC IMPORTED GLOBAL)", unit.name)?;
-                        // 2. Set the property pointing directly to the pre-compiled file path
-                        // (Assuming `src_paths` contains the single path to your .a/.lib file)
-                        writeln!(
-                            file,
-                            "set_target_properties({} PROPERTIES IMPORTED_LOCATION \"${{CMAKE_CURRENT_SOURCE_DIR}}/{}\")",
-                            unit.name,
-                            src_paths.replace('"', "")
-                        )?;
-                    }
-                    UnitKinds::ExtDyn => {
-                        writeln!(file, "# === UNIT: extdyn {} ===", unit.name)?;
-                        // 1. Declare the target as an IMPORTED SHARED library
-                        writeln!(file, "add_library({} SHARED IMPORTED GLOBAL)", unit.name)?;
-                        // 2. Set the property pointing directly to the pre-compiled file path
-                        writeln!(
-                            file,
-                            "set_target_properties({} PROPERTIES IMPORTED_LOCATION \"${{CMAKE_CURRENT_SOURCE_DIR}}/{}\")",
-                            unit.name,
-                            src_paths.replace('"', "")
-                        )?;
-                    }
-                }
-                if let Some(includes) = &unit.include {
-                    for inc in includes {
-                        if let Ok(rel_inc) = inc.strip_prefix(base_dir) {
-                            writeln!(
-                                file,
-                                "target_include_directories({} PRIVATE {})",
-                                unit.name,
-                                rel_inc.to_string_lossy()
-                            )?;
-                        }
-                    }
-                }
-
-                if !unit.resolved_deps.is_empty() {
-                    writeln!(file, "# === DEPS: {} ===", &unit.name)?;
-                    write!(file, "target_link_libraries({} PRIVATE ", unit.name)?;
-                    let mut unit_deps = Vec::new();
-                    for (dep_name, _dep_kind, _dep_path) in &unit.resolved_deps {
-                        unit_deps.push(dep_name.clone());
-                    }
-                    let dep_str = unit_deps.join(" ");
-                    writeln!(file, "{})", dep_str)?;
-                }
-                writeln!(file)?;
-            }
-        }
+        let output = old_build_sys::emit_build_file_output(plan, base_dir, build_dir, &lock)?;
+        writeln!(file, "{}", output)?;
     }
     Ok(())
 }
 
+/// Prepares the build plan for the project.
+///
+/// This function takes the lock file and prepares a list of units to correct into a plan.
+/// It first collects all source paths for each unit, both single file and non-recursive directories.
+/// Then, if the user wrote some, it adds all the include directory paths.
+/// Finally, it resolves all dependencies and adds them to the plan.
+///
+/// The way it resolves dependencies is by checking the units defined before it and getting the `kind` of it.
+/// If the kind is `extlib` or `extdyn`, it also adds in the path to link it.
 pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Vec<PreparedUnit>> {
     let mut plan = Vec::new();
 
-    let mut known_units: HashMap<String, UnitKinds> = collections::HashMap::new();
-    for unit in &lock.manifest.unit {
-        known_units.insert(unit.name.clone(), unit.kind.clone());
-    }
+    let known_units: HashMap<String, UnitKinds> = lock
+        .manifest
+        .unit
+        .iter()
+        .map(|u| (u.name.clone(), u.kind.clone()))
+        .collect();
 
     for unit in &lock.manifest.unit {
         let mut gathered_src_files = std::collections::BTreeSet::new();
 
         for src_path in &unit.src {
-            let target = if src_path.is_absolute() {
-                src_path.clone()
+            let target = util::clean_windows_path(if src_path.is_absolute() {
+                src_path.to_path_buf()
             } else {
                 base_dir.join(src_path)
-            };
+            });
 
-            if target.exists() {
-                if target.is_file() {
-                    gathered_src_files.insert(target);
-                } else if target.is_dir() {
-                    for entry in fs::read_dir(target)? {
-                        let path = entry?.path();
-                        if path.is_file() && path.extension().is_some_and(|ext| ext == "c") {
-                            gathered_src_files.insert(path);
-                        }
-                    }
-                }
-            } else {
+            if !target.exists() {
                 anyhow::bail!(
                     "File '{}' not found for sources in unit '{}'",
-                    target.to_string_lossy(),
+                    target.display(),
                     unit.name
                 );
+            }
+            if target.is_file() {
+                gathered_src_files.insert(target);
+            } else if target.is_dir() {
+                for entry in fs::read_dir(target)? {
+                    let path = entry?.path();
+                    if path.is_file() && path.extension().is_some_and(|ext| ext == "c") {
+                        gathered_src_files.insert(path);
+                    }
+                }
             }
         }
 
@@ -313,18 +178,18 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
 
         if let Some(include) = &unit.include {
             for include_path in include {
-                let target = if include_path.is_absolute() {
-                    include_path.clone()
+                let target = util::clean_windows_path(if include_path.is_absolute() {
+                    include_path.to_path_buf()
                 } else {
                     base_dir.join(include_path)
-                };
+                });
 
                 if target.exists() {
                     gathered_include_files.insert(target);
                 } else {
                     anyhow::bail!(
                         "File '{}' not found for include in unit '{}'",
-                        target.to_string_lossy(),
+                        target.display(),
                         unit.name
                     );
                 }
@@ -334,29 +199,32 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
         let mut resolved_dependencies = Vec::new();
         if let Some(deps) = &unit.deps {
             for dep in deps {
-                if let Some(kind) = known_units.get(dep) {
-                    let mut dep_path: Option<PathBuf> = None;
-                    if *kind == UnitKinds::ExtLib || *kind == UnitKinds::ExtDyn {
-                        if let Some(dep_unit) = lock.manifest.unit.iter().find(|u| u.name == *dep)
-                            && let Some(first_src) = dep_unit.src.first()
-                        {
-                            let target = if first_src.is_absolute() {
-                                first_src.clone()
-                            } else {
-                                base_dir.join(first_src)
-                            };
-                            dep_path = Some(target);
-                        }
+                let Some(kind) = known_units.get(dep) else {
+                    continue;
+                };
 
-                        if dep_path.is_none() {
-                            anyhow::bail!(
-                                "External library unit '{}' must specify the pre-compiled binary file path in 'src'",
-                                dep
-                            );
-                        }
-                    }
-                    resolved_dependencies.push((dep.clone(), kind.clone(), dep_path));
+                let mut dep_path: Option<PathBuf> = None;
+                if *kind == UnitKinds::ExtLib || *kind == UnitKinds::ExtDyn {
+                    /* NOTE: Since we treat the first file in 'src' as the pre-compiled binary,
+                     * we use it as the dependency path if available.
+                     */
+                    let dep_unit = lock.manifest.unit.iter().find(|u| u.name == *dep);
+                    let first_src = dep_unit.and_then(|u| u.src.first());
+
+                    let Some(src) = first_src else {
+                        anyhow::bail!(
+                            "External library unit '{}' must specify the pre-compiled binary file path in 'src'",
+                            dep
+                        );
+                    };
+
+                    dep_path = Some(util::clean_windows_path(if src.is_absolute() {
+                        src.to_path_buf()
+                    } else {
+                        base_dir.join(src)
+                    }));
                 }
+                resolved_dependencies.push((dep.clone(), kind.clone(), dep_path));
             }
         }
 
@@ -364,11 +232,8 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
             name: unit.name.clone(),
             kind: unit.kind.clone(),
             src: gathered_src_files.into_iter().collect(),
-            include: if gathered_include_files.is_empty() {
-                None
-            } else {
-                Some(gathered_include_files.into_iter().collect())
-            },
+            include: (!gathered_include_files.is_empty())
+                .then(|| gathered_include_files.into_iter().collect()),
             resolved_deps: resolved_dependencies,
             compiler_flags: unit.compiler_flags.clone().unwrap_or_default(),
             linker_flags: unit.linker_flags.clone().unwrap_or_default(),
@@ -388,32 +253,29 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
 pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
     println!("[info] Compiling project...");
 
-    let base_dir = match &args.path {
+    let raw_base_dir = match &args.path {
         Some(path) => path.canonicalize()?,
         None => std::env::current_dir()?,
     };
+
+    let base_dir = util::clean_windows_path(raw_base_dir);
     fs_utils::verify_workspace(&base_dir)?;
     let cache_dir = base_dir.join(".csalt");
 
     let salt_toml_str = fs::read_to_string(base_dir.join("Salt.toml"))?;
     let current_toml: SaltToml = toml::from_str(&salt_toml_str)?;
 
-    let lock = load_or_init_lock(&current_toml)?;
+    let lock = fs_utils::load_or_init_lock(&current_toml)?;
     // TODO: Consider a more professional output directory
     let out_bin_dir = base_dir.join(match &lock.manifest.build.build_dir {
         Some(dir) => dir,
-        None => Path::new("build/"),
+        None => Path::new("build"),
     });
-    emit_project(
-        &base_dir,
-        &cache_dir,
-        &out_bin_dir,
-        /* build_file */ false,
-    )?;
+    emit_project(&base_dir, &cache_dir, &out_bin_dir, None)?;
 
     if !args.backend_flags.is_empty() {
         let target_compiler = if let Some(backend) = &args.backend {
-            CompilerBackend::from_string(backend.as_str())?
+            CompilerBackend::try_from(backend.as_str())?
         } else {
             lock.manifest.build.compiler
         };
@@ -429,23 +291,23 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
     }
 
     fs::create_dir_all(&out_bin_dir)?;
+
     let in_bin_dir = cache_dir.join(
-        out_bin_dir
-            .strip_prefix(&base_dir)
+        util::clean_windows_path(out_bin_dir.clone())
+            .strip_prefix(util::clean_windows_path(base_dir.clone()))
             .context("Failed to create cache mirror of build directory")?,
     );
     fs::create_dir_all(&in_bin_dir)?;
 
-    // Read in the target compiler from `Salt.lock`. CLI flag overrides
     let compiler_backend: CompilerBackend = if let Some(backend) = &args.backend {
-        CompilerBackend::from_string(backend.as_str())?
+        CompilerBackend::try_from(backend.as_str())?
     } else {
         lock.manifest.build.compiler.clone()
     };
 
-    verify_command(compiler_backend.to_string())?;
+    verify_command(compiler_backend.to_string().as_str())?;
     let build_plan = prepare_build_plan(&lock, &base_dir)?;
-    let debug_on = false; // Disable debug output from existing, but keep the code so it can be enabled later
+    let debug_on = args.debug;
 
     for unit in build_plan {
         if unit.kind == UnitKinds::ExtLib || unit.kind == UnitKinds::ExtDyn {
@@ -460,193 +322,114 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
             unit.name, unit.kind
         );
 
-        let mut target_compiler = compiler_backend.generate_command();
         let output_executable = if cfg!(target_os = "windows") {
             out_bin_dir.join(&unit.name).with_extension("exe")
         } else {
             out_bin_dir.join(&unit.name)
         };
-        let obj_ext = match compiler_backend {
-            CompilerBackend::Gcc | CompilerBackend::Zig | CompilerBackend::Clang => "o",
-            CompilerBackend::Msvc | CompilerBackend::ClangCl => "obj",
-        };
-        let lib_ext = match compiler_backend {
-            CompilerBackend::Msvc | CompilerBackend::ClangCl => "lib",
-            CompilerBackend::Clang | CompilerBackend::Gcc | CompilerBackend::Zig => "a",
-        };
-        let lib_name = match compiler_backend {
-            CompilerBackend::Msvc | CompilerBackend::ClangCl => {
-                format!("{}.{}", unit.name, lib_ext)
-            }
-            CompilerBackend::Clang | CompilerBackend::Gcc | CompilerBackend::Zig => {
-                format!("lib{}.{}", unit.name, lib_ext)
-            }
-        };
+        let obj_ext = compiler_backend.get_object_extension();
+        let lib_name = compiler_backend.get_library_name(&unit.name);
         let out_lib = cache_dir.join(&lib_name);
 
-        let dyn_ext = if cfg!(target_os = "windows") {
-            "dll"
-        } else if cfg!(target_os = "macos") {
-            "dylib"
-        } else {
-            "so"
-        };
-        let dyn_name = if cfg!(target_os = "windows") {
-            format!("{}.{}", unit.name, dyn_ext)
-        } else {
-            format!("lib{}.{}", unit.name, dyn_ext)
-        };
+        let dyn_ext = util::get_dynamic_library_extension();
+        let dyn_name = util::get_dynamic_library_name(&unit.name);
         let out_dyn = cache_dir.join(&dyn_name);
 
-        // --- DEBUG ---
-        let mut debug_output_text = String::new();
-        if debug_on {
-            debug_output_text.push_str("[DEBUG COMMAND] ");
-            debug_output_text.push_str(compiler_backend.to_string());
-        }
-
-        match compiler_backend {
-            CompilerBackend::Gcc | CompilerBackend::Clang | CompilerBackend::Zig => {
-                if compiler_backend == CompilerBackend::Zig {
-                    target_compiler.arg("cc");
-                    if let Some(target) = &args.zig_target {
-                        target_compiler.arg("-target").arg(target);
-                    }
-
-                    // --- DEBUG ---
-                    if debug_on {
-                        debug_output_text.push_str(" cc");
-                    }
-                }
-
-                target_compiler
-                    .arg(format!("-std={}", lock.manifest.build.edition.to_string()))
-                    .args(unit.compiler_flags);
-
-                match unit.kind {
-                    UnitKinds::ExtLib | UnitKinds::ExtDyn => {}
-                    UnitKinds::Bin => {
-                        target_compiler.arg("-c");
-
-                        // --- DEBUG ---
-                        if debug_on {
-                            debug_output_text.push_str(" -o ");
-                            debug_output_text.push_str(&output_executable.to_string_lossy());
-                        }
-                    }
-                    UnitKinds::Dyn => {
-                        target_compiler.arg("-c");
-
-                        // --- DEBUG ---
-                        if debug_on {
-                            debug_output_text.push_str(" -shared -fPIC -o ");
-                            debug_output_text.push_str(&out_dyn.to_string_lossy());
-                        }
-                    }
-                    UnitKinds::Lib => {
-                        // Static libraries are archives of individual object (.o) files
-                        // We instruct GCC to compile source targets to relocatable objects first (-c)
-                        target_compiler.arg("-c");
-
-                        // --- DEBUG ---
-                        if debug_on {
-                            debug_output_text.push_str(" -c");
-                        }
-                    }
-                }
-            }
-            CompilerBackend::Msvc | CompilerBackend::ClangCl => {
-                match lock.manifest.build.edition {
-                    CEditions::C11 => {
-                        target_compiler.arg("/std:c11");
-                    }
-                    CEditions::C17 => {
-                        target_compiler.arg("/std:c17");
-                    }
-                    CEditions::C23 => {
-                        target_compiler.arg("/std:clatest");
-                    }
-                    _ => {} // Unsupported editions are ignored
-                };
-
-                match unit.kind {
-                    UnitKinds::ExtLib | UnitKinds::ExtDyn => {}
-                    UnitKinds::Bin => {
-                        target_compiler.arg(format!("/Fe:{}", output_executable.to_string_lossy()));
-
-                        // --- DEBUG ---
-                        if debug_on {
-                            debug_output_text.push_str(
-                                format!("/Fe:{}", output_executable.to_string_lossy()).as_str(),
-                            );
-                        }
-                    }
-                    UnitKinds::Dyn => {
-                        target_compiler
-                            .arg("/LD")
-                            .arg(format!("/Fe:{}", out_dyn.to_string_lossy()));
-
-                        // --- DEBUG ---
-                        if debug_on {
-                            debug_output_text.push_str(
-                                format!("/LD /Fe:{}", out_dyn.to_string_lossy()).as_str(),
-                            );
-                        }
-                    }
-                    UnitKinds::Lib => {
-                        target_compiler.arg("/c");
-
-                        // --- DEBUG ---
-                        if debug_on {
-                            debug_output_text.push_str(" /c");
-                        }
-                    }
-                }
-            }
-        }
-
-        if let Some(include_paths) = &unit.include {
-            for include_path in include_paths {
-                if let Ok(absolute_inc) = include_path.canonicalize() {
-                    match compiler_backend {
-                        CompilerBackend::Msvc | CompilerBackend::ClangCl => {
-                            target_compiler.arg(format!("/I{}", absolute_inc.to_string_lossy()));
-
-                            // --- DEBUG ---
-                            if debug_on {
-                                debug_output_text.push_str(
-                                    format!(" /I{}", absolute_inc.to_string_lossy()).as_str(),
-                                );
-                            }
-                        }
-                        _ => {
-                            target_compiler.arg("-I").arg(&absolute_inc);
-
-                            // --- DEBUG ---
-                            if debug_on {
-                                debug_output_text.push_str(
-                                    format!(" -I{}", absolute_inc.to_string_lossy()).as_str(),
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-        }
         for src_file in &unit.src {
+            println!("[info] Compiling source file: {}", src_file.display());
+            let mut target_compiler = compiler_backend.generate_command();
+            if let Some(include_paths) = &unit.include {
+                for include_path in include_paths {
+                    if let Ok(absolute_inc) = include_path.canonicalize() {
+                        match compiler_backend {
+                            CompilerBackend::Msvc | CompilerBackend::ClangCl => {
+                                target_compiler.arg(format!("/I{}", absolute_inc.display()));
+                            }
+                            _ => {
+                                target_compiler.arg("-I").arg(&absolute_inc);
+                            }
+                        }
+                    }
+                }
+            }
+            if compiler_backend == CompilerBackend::Zig {
+                target_compiler.arg("cc");
+                if let Some(target) = &args.zig_target {
+                    target_compiler.arg("-target").arg(target);
+                }
+            }
+
+            match compiler_backend {
+                CompilerBackend::Gcc | CompilerBackend::Clang | CompilerBackend::Zig => {
+                    target_compiler
+                        .arg(format!("-std={}", lock.manifest.build.edition))
+                        .args(&unit.compiler_flags);
+
+                    if unit.kind == UnitKinds::Lib
+                        || unit.kind == UnitKinds::Bin
+                        || unit.kind == UnitKinds::Dyn
+                    {
+                        target_compiler.arg("-c");
+                    }
+                }
+                CompilerBackend::Msvc | CompilerBackend::ClangCl => {
+                    match lock.manifest.build.edition {
+                        CEditions::C11 => {
+                            target_compiler.arg("/std:c11");
+                        }
+                        CEditions::C17 => {
+                            target_compiler.arg("/std:c17");
+                        }
+                        CEditions::C23 => {
+                            target_compiler.arg("/std:clatest");
+                        }
+                        _ => {} // Unsupported editions are ignored
+                    };
+
+                    // NOTE: This has NOT been touched to work the same as Gcc-like compilers
+                    match unit.kind {
+                        UnitKinds::ExtLib | UnitKinds::ExtDyn => {}
+                        UnitKinds::Bin => {
+                            target_compiler
+                                .arg(format!("/Fe:{}", output_executable.to_string_lossy()));
+                        }
+                        UnitKinds::Dyn => {
+                            target_compiler
+                                .arg("/LD")
+                                .arg(format!("/Fe:{}", out_dyn.to_string_lossy()));
+                        }
+                        UnitKinds::Lib => {
+                            target_compiler.arg("/c");
+                        }
+                    }
+                }
+            }
             let relative_src = src_file.strip_prefix(&base_dir)?;
             target_compiler.arg(relative_src);
+            let mut obj_output = cache_dir.join(relative_src);
+            obj_output.set_extension(obj_ext);
+
+            match compiler_backend {
+                CompilerBackend::Msvc | CompilerBackend::ClangCl => {
+                    target_compiler.arg(format!("/Fo:{}", obj_output.to_string_lossy()));
+                }
+                _ => {
+                    target_compiler.arg("-o").arg(&obj_output);
+                }
+            }
 
             // --- DEBUG ---
             if debug_on {
-                debug_output_text.push_str(format!(" {}", relative_src.to_string_lossy()).as_str());
+                println!("[DEBUG compiler] {:?}", target_compiler);
+            }
+
+            let status = target_compiler.current_dir(&cache_dir).status()?;
+            if !status.success() {
+                anyhow::bail!("Failed to compile source file '{}'", relative_src.display());
             }
         }
 
-        let status = target_compiler.current_dir(&cache_dir).status()?;
-        if !status.success() {
-            anyhow::bail!("Failed to compile unit '{}'", unit.name);
-        }
+        println!("[info] Compiled unit: {}", unit.name);
 
         // If this unit was a Static Library, we must pack the resulting object files into a .a container
         if unit.kind == UnitKinds::Lib {
@@ -660,19 +443,6 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                     let mut cmd = std::process::Command::new("lib");
                     cmd.arg(format!("/OUT:{}", out_lib.to_string_lossy()));
 
-                    // --- DEBUG ---
-                    if debug_on {
-                        debug_output_text.push_str(
-                            format!(
-                                "lib /OUT:{}",
-                                cache_dir
-                                    .join(format!("{}.lib", unit.name))
-                                    .to_string_lossy()
-                            )
-                            .as_str(),
-                        );
-                    }
-
                     cmd
                 }
                 CompilerBackend::Gcc | CompilerBackend::Zig | CompilerBackend::Clang => {
@@ -680,23 +450,20 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                     cmd.arg("rcs");
                     cmd.arg(&lib_name);
 
-                    // --- DEBUG ---
-                    if debug_on {
-                        debug_output_text.push_str(format!("ar rcs lib{}.a", unit.name).as_str());
-                    }
-
                     cmd
                 }
             };
 
             for src_file in &unit.src {
-                let path = Path::new(src_file);
-                if let Some(file_stem) = path.file_stem() {
-                    let object_file_name = format!("{}.{}", file_stem.to_string_lossy(), obj_ext);
+                let relative_src = src_file.strip_prefix(&base_dir)?;
+                let mut object_path = cache_dir.join(relative_src);
+                object_path.set_extension(obj_ext);
+                ar_command.arg(&object_path);
+            }
 
-                    let object_path = cache_dir.join(object_file_name);
-                    ar_command.arg(object_path);
-                }
+            // --- DEBUG --
+            if debug_on {
+                println!("[DEBUG archiver] {:?}", ar_command);
             }
 
             let ar_status = ar_command.current_dir(&cache_dir).status()?;
@@ -717,10 +484,10 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
             let mut link_command = compiler_backend.generate_command();
 
             for src_file in &unit.src {
-                if let Some(file_stem) = src_file.file_stem() {
-                    let obj_name = format!("{}.{}", file_stem.to_string_lossy(), obj_ext);
-                    link_command.arg(obj_name);
-                }
+                let relative_src = src_file.strip_prefix(&base_dir)?;
+                let mut object_path = cache_dir.join(relative_src);
+                object_path.set_extension(obj_ext);
+                link_command.arg(&object_path);
             }
             match compiler_backend {
                 CompilerBackend::Clang | CompilerBackend::Gcc | CompilerBackend::Zig => {
@@ -758,22 +525,22 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                                 }
                             },
                             UnitKinds::ExtLib | UnitKinds::ExtDyn => {
-                                if let Some(path) = dep_path {
-                                    let clean_path = path.canonicalize()?;
-                                    link_command.arg(&clean_path);
-
-                                    if unit.kind == UnitKinds::ExtDyn && cfg!(target_os = "macos") {
-                                        link_command
-                                            .arg("-Xlinker")
-                                            .arg("-rpath")
-                                            .arg("-Xlinker")
-                                            .arg("@executable_path");
-                                    }
-                                } else {
+                                let Some(path) = dep_path else {
                                     anyhow::bail!(
                                         "Missing pre-resolved path for external dependency: {}",
                                         dep_name
                                     );
+                                };
+
+                                let clean_path = path.canonicalize()?;
+                                link_command.arg(&clean_path);
+
+                                if unit.kind == UnitKinds::ExtDyn && cfg!(target_os = "macos") {
+                                    link_command
+                                        .arg("-Xlinker")
+                                        .arg("-rpath")
+                                        .arg("-Xlinker")
+                                        .arg("@executable_path");
                                 }
                             }
                             _ => {}
@@ -783,6 +550,10 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                 CompilerBackend::Msvc | CompilerBackend::ClangCl => {}
             }
 
+            // --- DEBUG --
+            if debug_on {
+                println!("[DEBUG linker] {:?}", link_command);
+            }
             let status = link_command.current_dir(&cache_dir).status()?;
             if !status.success() {
                 anyhow::bail!("Failed to link unit '{}'", unit.name);
@@ -792,16 +563,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                 fs::copy(&out_dyn, out_bin_dir.join(&dyn_name))?;
             }
         }
-
-        // --- DEBUG ---
-        if debug_on {
-            dbg!("{}", debug_output_text);
-        }
     }
-
-    // TODO: Transpile the input files, and refactor above loop to use this.
-    // NOTE: .c goes to a check function, .csal goes to a transpile function. The check function should have a bool to turn off features for .c
-    // transpile::transpile(...)?;
 
     let updated_lock = serde_json::to_string(&lock)?;
     fs::write(base_dir.join("Salt.lock"), updated_lock)?;
@@ -824,31 +586,31 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
     println!("[info] Building project...");
 
     let base_dir = match &build_args.path {
-        Some(path) => path.canonicalize()?,
-        None => std::env::current_dir()?,
+        Some(path) => path,
+        None => &std::env::current_dir()?,
     };
-    fs_utils::verify_workspace(&base_dir)?;
+    fs_utils::verify_workspace(base_dir)?;
+
     let cache_dir = base_dir.join(".csalt");
 
     let salt_toml_str = fs::read_to_string(base_dir.join("Salt.toml"))?;
     let current_toml: SaltToml = toml::from_str(&salt_toml_str)?;
 
-    let lock = load_or_init_lock(&current_toml)?;
-    let mut build_dir = base_dir.join(
-        lock.manifest
-            .build
-            .build_dir
-            .as_deref()
-            .unwrap_or(Path::new("build")),
-    );
-    fs::create_dir_all(&build_dir)?;
-    build_dir = build_dir.canonicalize()?;
-    emit_project(
-        &base_dir, &cache_dir, &build_dir, /* build_file */ false,
-    )?;
+    let lock = fs_utils::load_or_init_lock(&current_toml)?;
+
+    let floating_build_dir = lock
+        .manifest
+        .build
+        .build_dir
+        .as_deref()
+        .unwrap_or(Path::new("build"));
+    let build_dir = &base_dir.join(floating_build_dir);
+    fs::create_dir_all(build_dir)?;
+
+    emit_project(base_dir, &cache_dir, build_dir, None)?;
 
     let backend = if let Some(backend) = &build_args.backend {
-        BuildSystems::from_string(backend)?
+        BuildSystems::try_from(backend.as_str())?
     } else {
         lock.manifest.build.build_sys.clone()
     };
@@ -857,7 +619,7 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
         let mut target_build = backend.generate_command();
         target_build
             .args(&build_args.backend_flags)
-            .current_dir(&base_dir);
+            .current_dir(base_dir);
         let status = target_build.status()?;
         if !status.success() {
             anyhow::bail!("Failed to build project");
@@ -866,6 +628,7 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
         return Ok(());
     }
 
+    let plan = prepare_build_plan(&lock, base_dir)?;
     match backend {
         BuildSystems::CMake => {
             let user_cmake_path = base_dir.join("CMakeLists.txt");
@@ -883,20 +646,17 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
                     "[info] No manual configuration found. Generating Fresh CMakeLists.txt..."
                 );
 
-                emit_project(
-                    &base_dir, &cache_dir, &build_dir, /* build_file */ true,
-                )?;
+                emit_project(base_dir, &cache_dir, floating_build_dir, Some(plan))?;
             }
-            // NOTE: Consider using the compiler option to choose which one to search for first
 
             let mut cmake_configure = std::process::Command::new("cmake");
             cmake_configure
                 .current_dir(&cache_dir)
                 .arg("-B")
-                .arg(&build_dir)
+                .arg(floating_build_dir)
                 .arg(format!(
                     "-DCMAKE_C_COMPILER={}",
-                    lock.manifest.build.compiler.to_string()
+                    lock.manifest.build.compiler
                 ));
 
             let config_status = cmake_configure.status()?;
@@ -908,7 +668,7 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
             cmake_build
                 .current_dir(&cache_dir)
                 .arg("--build")
-                .arg(&build_dir);
+                .arg(floating_build_dir);
 
             let build_status = cmake_build.status()?;
             if !build_status.success() {

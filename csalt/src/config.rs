@@ -10,15 +10,20 @@ use std::process::Command;
 // ================== SALT.TOML ==================
 
 // --------------- DATA STRUCTURES ---------------
+
+/// The kind of unit to build.
+/// - `lib`: A static library
+/// - `dyn`: A dynamic library
+/// - `bin`: A binary executable
+/// - `extlib`: A pre-compiled static library
+/// - `extdyn`: A pre-compiled dynamic library
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum UnitKinds {
     Lib,
     Dyn,
     Bin,
-    /// Pre-compiled library
     ExtLib,
-    /// Pre-compiled dynamic library
     ExtDyn,
 }
 
@@ -32,7 +37,6 @@ pub enum CEditions {
     C23,
 }
 
-// TODO: Separate this into the build system AND version. This was done for the MVP to keep things simple, as well as focusing only on keystone versions right after a major policy or edition change
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum BuildSystems {
     #[serde(rename = "cmake")]
@@ -50,39 +54,76 @@ pub enum CompilerBackend {
 }
 
 // --------- DATA STRUCTURES -> FUNCTIONS ---------
-impl CEditions {
-    pub fn to_string(&self) -> &str {
-        match self {
+impl std::fmt::Display for CEditions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
             Self::C89 => "c89",
             Self::C99 => "c99",
             Self::C11 => "c11",
             Self::C17 => "c17",
             Self::C23 => "c23",
-        }
+        };
+        write!(f, "{}", s)
     }
 }
 
 impl BuildSystems {
-    pub fn from_string(s: &str) -> anyhow::Result<Self> {
-        match s.to_lowercase().as_str() {
-            "cmake" => Ok(Self::CMake),
-            _ => anyhow::bail!("unknown build system"),
-        }
-    }
-
-    pub fn to_string(&self) -> &str {
-        match self {
-            Self::CMake => "cmake",
-        }
-    }
-
     pub fn generate_command(&self) -> Command {
         Command::new(self.to_string())
     }
 }
 
+impl std::fmt::Display for BuildSystems {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::CMake => "cmake",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+impl TryFrom<&str> for BuildSystems {
+    type Error = anyhow::Error;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        match s.to_lowercase().as_str() {
+            "cmake" => Ok(Self::CMake),
+            _ => anyhow::bail!("unknown build system"),
+        }
+    }
+}
+
 impl CompilerBackend {
-    pub fn from_string(s: &str) -> anyhow::Result<Self> {
+    pub fn generate_command(&self) -> Command {
+        Command::new(self.to_string())
+    }
+
+    pub fn get_object_extension(&self) -> &str {
+        match self {
+            Self::Clang | Self::Gcc | Self::Zig => "o",
+            Self::Msvc | Self::ClangCl => "obj",
+        }
+    }
+
+    fn get_library_extension(&self) -> &str {
+        match self {
+            Self::Msvc | Self::ClangCl => "lib",
+            Self::Clang | Self::Gcc | Self::Zig => "a",
+        }
+    }
+
+    pub fn get_library_name(&self, unit_name: &str) -> String {
+        if !cfg!(target_os = "windows") {
+            return format!("lib{}.{}", unit_name, self.get_library_extension());
+        }
+        format!("{}.{}", unit_name, self.get_library_extension())
+    }
+}
+
+impl TryFrom<&str> for CompilerBackend {
+    type Error = anyhow::Error;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
         match s.to_lowercase().as_str() {
             "clang" => Ok(Self::Clang),
             "gcc" => Ok(Self::Gcc),
@@ -92,19 +133,18 @@ impl CompilerBackend {
             _ => anyhow::bail!("unknown backend"),
         }
     }
+}
 
-    pub fn to_string(&self) -> &str {
-        match self {
+impl std::fmt::Display for CompilerBackend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
             Self::Clang => "clang",
             Self::Gcc => "gcc",
             Self::Zig => "zig",
             Self::Msvc => "cl",
             Self::ClangCl => "clang-cl",
-        }
-    }
-
-    pub fn generate_command(&self) -> Command {
-        Command::new(self.to_string())
+        };
+        write!(f, "{}", s)
     }
 }
 
@@ -151,8 +191,7 @@ pub struct SaltToml {
 
 // ------------------ FUNCTIONS ------------------
 impl SaltToml {
-    pub fn validate(&self) -> anyhow::Result<()> {
-        // 1. Ensure the package name isn't blank
+    pub fn validate(&self, base_dir: &std::path::Path) -> anyhow::Result<()> {
         if self.package.name.trim().is_empty() {
             anyhow::bail!("Package name cannot be empty in Salt.toml");
         }
@@ -161,7 +200,7 @@ impl SaltToml {
             anyhow::bail!("At least one unit must be defined in Salt.toml");
         }
 
-        // 2. Verify target definitions aren't broken and are in the correct order
+        // Verify target definitions aren't broken and are in the correct order
         /*
          * We must ensure that lib and dyn are before bin in the unit vector
          * Also ensure any deps are declared before their use
@@ -211,7 +250,10 @@ impl SaltToml {
             }
 
             if let Some(includes) = &target.include {
-                for include in includes {
+                for include in includes.iter().map(|i| base_dir.join(i)) {
+                    if !include.exists() {
+                        anyhow::bail!("Include '{}' does not exist", include.display());
+                    }
                     if include.is_file() {
                         anyhow::bail!("Include '{}' is a file, not a directory", include.display());
                     }
@@ -219,33 +261,19 @@ impl SaltToml {
             }
         }
 
-        // 3. Validate build system and compiler
         if self.build.edition == CEditions::C89 && self.build.compiler == CompilerBackend::Msvc {
             anyhow::bail!("C89 is not supported with MSVC");
         }
 
         if self.build.build_sys == BuildSystems::CMake {
-            let mut version_str = self.build.build_sys_ver.trim().to_string();
-            if version_str.split('.').count() == 2 {
-                version_str.push_str(".0"); // Append a dummy patch version if they just wrote "3.15"
-            }
+            let version = crate::util::normalize_semver(&self.build.build_sys_ver)?;
 
-            match semver::Version::parse(&version_str) {
-                Ok(parsed_version) => {
-                    let minimum_required = semver::Version::parse("3.15.0")?;
-                    if parsed_version < minimum_required {
-                        anyhow::bail!(
-                            "C-Salt requires CMake version 3.15.0 or higher. Found: {}",
-                            self.build.build_sys_ver
-                        );
-                    }
-                }
-                Err(_) => {
-                    anyhow::bail!(
-                        "Invalid CMake version format '{}'. Please use standard SemVer (e.g., '3.15' or '3.28.1')",
-                        self.build.build_sys_ver
-                    );
-                }
+            let minimum_required = semver::Version::parse("3.15.0")?;
+            if version < minimum_required {
+                anyhow::bail!(
+                    "C-Salt requires CMake version 3.15.0 or higher. Found: {}",
+                    self.build.build_sys_ver
+                );
             }
         }
 

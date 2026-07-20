@@ -46,7 +46,7 @@ fn run_csalt() -> anyhow::Result<()> {
             };
             let cache_dir = base_dir.join(".csalt");
             let toml = toml::from_str(&std::fs::read_to_string(base_dir.join("Salt.toml"))?)?;
-            let lock = csalt::load_or_init_lock(&toml)?;
+            let lock = csalt::fs_utils::load_or_init_lock(&toml)?;
             let build_dir = base_dir.join(
                 lock.manifest
                     .build
@@ -56,7 +56,13 @@ fn run_csalt() -> anyhow::Result<()> {
             );
             std::fs::create_dir_all(&build_dir)?;
             let build_dir = build_dir.canonicalize()?;
-            emit_project(&base_dir, &cache_dir, &build_dir, emit_args.build_file)?;
+            let plan = csalt::prepare_build_plan(&lock, &base_dir)?;
+            emit_project(
+                &base_dir,
+                &cache_dir,
+                &build_dir,
+                emit_args.build_file.then_some(plan),
+            )?;
             println!("[Success] Project emitted successfully");
         }
 
