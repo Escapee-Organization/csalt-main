@@ -27,6 +27,7 @@
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
 - [Features](#features)
+- [FAQ](#faq)
 - [AI Usage Disclosure](#ai-usage-disclosure)
 - [Roadmap](#roadmap)
 - [Contributing and Licensing](#contributing-and-licensing)
@@ -53,7 +54,7 @@ compiler = "clang"
 
 [[unit]]
 name = "example"
-kind = "bin" # Three kinds of units: bin, dyn, and lib
+kind = "bin"
 main = "src/main.c"
 src = ["src/"]
 ```
@@ -105,6 +106,17 @@ csalt --help
     <command> [args]
     cd ..
     ```
+
+## FAQ
+
+1. **What are the kinds of `[[unit]]` I can use?**
+  - There are 5 basic kinds of `[[unit]]` you can use:
+  - `bin` (binary, e.g. `main` or `main.exe`)
+  - `lib` (static library, e.g. `libmath.a` or `math.lib`)
+  - `dyn` (dynamic library, e.g. `libmath.dll` or `libmath.so`)
+  - `extlib` (pre-compiled static library, e.g. `libmath.a` or `math.lib`)
+  - `extdyn` (pre-compiled dynamic library, e.g. `libmath.dll` or `libmath.so`)
+  - **NOTE**: `extdyn` and `dyn` have caused the original creator many issues, especially late at night for cross-platform uses, so they may not be complete
 
 ## AI Usage Disclosure
 All architectural decisions were made by the original creator (BurningHot687). A large portion of the current codebase was generated using the Zed Auto-complete functionality and Gemini Flash.
