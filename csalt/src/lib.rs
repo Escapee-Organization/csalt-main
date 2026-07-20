@@ -525,22 +525,22 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                                 }
                             },
                             UnitKinds::ExtLib | UnitKinds::ExtDyn => {
-                                if let Some(path) = dep_path {
-                                    let clean_path = path.canonicalize()?;
-                                    link_command.arg(&clean_path);
-
-                                    if unit.kind == UnitKinds::ExtDyn && cfg!(target_os = "macos") {
-                                        link_command
-                                            .arg("-Xlinker")
-                                            .arg("-rpath")
-                                            .arg("-Xlinker")
-                                            .arg("@executable_path");
-                                    }
-                                } else {
+                                let Some(path) = dep_path else {
                                     anyhow::bail!(
                                         "Missing pre-resolved path for external dependency: {}",
                                         dep_name
                                     );
+                                };
+
+                                let clean_path = path.canonicalize()?;
+                                link_command.arg(&clean_path);
+
+                                if unit.kind == UnitKinds::ExtDyn && cfg!(target_os = "macos") {
+                                    link_command
+                                        .arg("-Xlinker")
+                                        .arg("-rpath")
+                                        .arg("-Xlinker")
+                                        .arg("@executable_path");
                                 }
                             }
                             _ => {}
