@@ -322,7 +322,6 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
             unit.name, unit.kind
         );
 
-        let mut target_compiler = compiler_backend.generate_command();
         let output_executable = if cfg!(target_os = "windows") {
             out_bin_dir.join(&unit.name).with_extension("exe")
         } else {
@@ -336,93 +335,101 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
         let dyn_name = util::get_dynamic_library_name(&unit.name);
         let out_dyn = cache_dir.join(&dyn_name);
 
-        match compiler_backend {
-            CompilerBackend::Gcc | CompilerBackend::Clang | CompilerBackend::Zig => {
-                if compiler_backend == CompilerBackend::Zig {
-                    target_compiler.arg("cc");
-                    if let Some(target) = &args.zig_target {
-                        target_compiler.arg("-target").arg(target);
-                    }
-                }
-
-                target_compiler
-                    .arg(format!("-std={}", lock.manifest.build.edition))
-                    .args(unit.compiler_flags);
-
-                match unit.kind {
-                    UnitKinds::ExtLib | UnitKinds::ExtDyn => {}
-                    UnitKinds::Bin => {
-                        target_compiler.arg("-c");
-                    }
-                    UnitKinds::Dyn => {
-                        target_compiler.arg("-c");
-                    }
-                    UnitKinds::Lib => {
-                        // Static libraries are archives of individual object (.o) files
-                        // We instruct GCC to compile source targets to relocatable objects first (-c)
-                        target_compiler.arg("-c");
-                    }
-                }
-            }
-            CompilerBackend::Msvc | CompilerBackend::ClangCl => {
-                match lock.manifest.build.edition {
-                    CEditions::C11 => {
-                        target_compiler.arg("/std:c11");
-                    }
-                    CEditions::C17 => {
-                        target_compiler.arg("/std:c17");
-                    }
-                    CEditions::C23 => {
-                        target_compiler.arg("/std:clatest");
-                    }
-                    _ => {} // Unsupported editions are ignored
-                };
-
-                match unit.kind {
-                    UnitKinds::ExtLib | UnitKinds::ExtDyn => {}
-                    UnitKinds::Bin => {
-                        target_compiler.arg(format!("/Fe:{}", output_executable.to_string_lossy()));
-                    }
-                    UnitKinds::Dyn => {
-                        target_compiler
-                            .arg("/LD")
-                            .arg(format!("/Fe:{}", out_dyn.to_string_lossy()));
-                    }
-                    UnitKinds::Lib => {
-                        target_compiler.arg("/c");
-                    }
-                }
-            }
-        }
-
-        if let Some(include_paths) = &unit.include {
-            for include_path in include_paths {
-                if let Ok(absolute_inc) = include_path.canonicalize() {
-                    match compiler_backend {
-                        CompilerBackend::Msvc | CompilerBackend::ClangCl => {
-                            target_compiler.arg(format!("/I{}", absolute_inc.display()));
-                        }
-                        _ => {
-                            target_compiler.arg("-I").arg(&absolute_inc);
-                        }
-                    }
-                }
-            }
-        }
         for src_file in &unit.src {
+            println!("[info] Compiling source file: {}", src_file.display());
+            let mut target_compiler = compiler_backend.generate_command();
+            if let Some(include_paths) = &unit.include {
+                for include_path in include_paths {
+                    if let Ok(absolute_inc) = include_path.canonicalize() {
+                        match compiler_backend {
+                            CompilerBackend::Msvc | CompilerBackend::ClangCl => {
+                                target_compiler.arg(format!("/I{}", absolute_inc.display()));
+                            }
+                            _ => {
+                                target_compiler.arg("-I").arg(&absolute_inc);
+                            }
+                        }
+                    }
+                }
+            }
+            if compiler_backend == CompilerBackend::Zig {
+                target_compiler.arg("cc");
+                if let Some(target) = &args.zig_target {
+                    target_compiler.arg("-target").arg(target);
+                }
+            }
+
+            match compiler_backend {
+                CompilerBackend::Gcc | CompilerBackend::Clang | CompilerBackend::Zig => {
+                    target_compiler
+                        .arg(format!("-std={}", lock.manifest.build.edition))
+                        .args(&unit.compiler_flags);
+
+                    if unit.kind == UnitKinds::Lib
+                        || unit.kind == UnitKinds::Bin
+                        || unit.kind == UnitKinds::Dyn
+                    {
+                        target_compiler.arg("-c");
+                    }
+                }
+                CompilerBackend::Msvc | CompilerBackend::ClangCl => {
+                    match lock.manifest.build.edition {
+                        CEditions::C11 => {
+                            target_compiler.arg("/std:c11");
+                        }
+                        CEditions::C17 => {
+                            target_compiler.arg("/std:c17");
+                        }
+                        CEditions::C23 => {
+                            target_compiler.arg("/std:clatest");
+                        }
+                        _ => {} // Unsupported editions are ignored
+                    };
+
+                    // NOTE: This has NOT been touched to work the same as Gcc-like compilers
+                    match unit.kind {
+                        UnitKinds::ExtLib | UnitKinds::ExtDyn => {}
+                        UnitKinds::Bin => {
+                            target_compiler
+                                .arg(format!("/Fe:{}", output_executable.to_string_lossy()));
+                        }
+                        UnitKinds::Dyn => {
+                            target_compiler
+                                .arg("/LD")
+                                .arg(format!("/Fe:{}", out_dyn.to_string_lossy()));
+                        }
+                        UnitKinds::Lib => {
+                            target_compiler.arg("/c");
+                        }
+                    }
+                }
+            }
             let relative_src = src_file.strip_prefix(&base_dir)?;
             target_compiler.arg(relative_src);
+            let mut obj_output = cache_dir.join(relative_src);
+            obj_output.set_extension(obj_ext);
+
+            match compiler_backend {
+                CompilerBackend::Msvc | CompilerBackend::ClangCl => {
+                    target_compiler.arg(format!("/Fo:{}", obj_output.to_string_lossy()));
+                }
+                _ => {
+                    target_compiler.arg("-o").arg(&obj_output);
+                }
+            }
+
+            // --- DEBUG ---
+            if debug_on {
+                println!("[DEBUG compiler] {:?}", target_compiler);
+            }
+
+            let status = target_compiler.current_dir(&cache_dir).status()?;
+            if !status.success() {
+                anyhow::bail!("Failed to compile source file '{}'", relative_src.display());
+            }
         }
 
-        // --- DEBUG ---
-        if debug_on {
-            println!("[DEBUG compiler] {:?}", target_compiler);
-        }
-
-        let status = target_compiler.current_dir(&cache_dir).status()?;
-        if !status.success() {
-            anyhow::bail!("Failed to compile unit '{}'", unit.name);
-        }
+        println!("[info] Compiled unit: {}", unit.name);
 
         // If this unit was a Static Library, we must pack the resulting object files into a .a container
         if unit.kind == UnitKinds::Lib {
@@ -448,13 +455,10 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
             };
 
             for src_file in &unit.src {
-                let path = Path::new(src_file);
-                if let Some(file_stem) = path.file_stem() {
-                    let object_file_name = format!("{}.{}", file_stem.to_string_lossy(), obj_ext);
-
-                    let object_path = cache_dir.join(object_file_name);
-                    ar_command.arg(object_path);
-                }
+                let relative_src = src_file.strip_prefix(&base_dir)?;
+                let mut object_path = cache_dir.join(relative_src);
+                object_path.set_extension(obj_ext);
+                ar_command.arg(&object_path);
             }
 
             // --- DEBUG --
@@ -480,10 +484,10 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
             let mut link_command = compiler_backend.generate_command();
 
             for src_file in &unit.src {
-                if let Some(file_stem) = src_file.file_stem() {
-                    let obj_name = format!("{}.{}", file_stem.to_string_lossy(), obj_ext);
-                    link_command.arg(obj_name);
-                }
+                let relative_src = src_file.strip_prefix(&base_dir)?;
+                let mut object_path = cache_dir.join(relative_src);
+                object_path.set_extension(obj_ext);
+                link_command.arg(&object_path);
             }
             match compiler_backend {
                 CompilerBackend::Clang | CompilerBackend::Gcc | CompilerBackend::Zig => {
