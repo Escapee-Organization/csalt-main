@@ -585,7 +585,7 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
         Some(path) => path,
         None => &std::env::current_dir()?,
     };
-    fs_utils::verify_workspace(&base_dir)?;
+    fs_utils::verify_workspace(base_dir)?;
 
     let cache_dir = base_dir.join(".csalt");
 
@@ -601,9 +601,9 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
         .as_deref()
         .unwrap_or(Path::new("build"));
     let build_dir = &base_dir.join(floating_build_dir);
-    fs::create_dir_all(&build_dir)?;
+    fs::create_dir_all(build_dir)?;
 
-    emit_project(&base_dir, &cache_dir, &build_dir, None)?;
+    emit_project(base_dir, &cache_dir, build_dir, None)?;
 
     let backend = if let Some(backend) = &build_args.backend {
         BuildSystems::try_from(backend.as_str())?
@@ -615,7 +615,7 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
         let mut target_build = backend.generate_command();
         target_build
             .args(&build_args.backend_flags)
-            .current_dir(&base_dir);
+            .current_dir(base_dir);
         let status = target_build.status()?;
         if !status.success() {
             anyhow::bail!("Failed to build project");
@@ -624,7 +624,7 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let plan = prepare_build_plan(&lock, &base_dir)?;
+    let plan = prepare_build_plan(&lock, base_dir)?;
     match backend {
         BuildSystems::CMake => {
             let user_cmake_path = base_dir.join("CMakeLists.txt");
@@ -642,7 +642,7 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
                     "[info] No manual configuration found. Generating Fresh CMakeLists.txt..."
                 );
 
-                emit_project(&base_dir, &cache_dir, &floating_build_dir, Some(plan))?;
+                emit_project(base_dir, &cache_dir, floating_build_dir, Some(plan))?;
             }
 
             let mut cmake_configure = std::process::Command::new("cmake");
