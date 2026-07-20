@@ -59,7 +59,7 @@ main = "src/main.c"
 src = ["src/"]
 ```
 
-**NOTE**: C-Salt is a Minimum Viable Product (MVP) in this current stage. It is not ready for production use, will change heavily, has unfinished features, and is not battle-tested against every edge case.
+**NOTE**: C-Salt is a Minimum Viable Product (MVP) in this current stage. It is not ready for production use, will change heavily, has unfinished features, and is not battle-tested against every edge case, especially for cross-platform uses.
 
 ## Quick Start
 There are a few ways to get started with C-Salt:
