@@ -102,7 +102,7 @@ pub fn emit_project(
     base_dir: &Path,
     cache_dir: &Path,
     build_dir: &Path,
-    build_file: bool,
+    plan: Option<Vec<PreparedUnit>>,
 ) -> anyhow::Result<()> {
     fs_utils::verify_workspace(base_dir)?;
     fs_utils::copy_project_files(base_dir, cache_dir)?;
@@ -111,9 +111,7 @@ pub fn emit_project(
 
     let lock = fs_utils::load_or_init_lock(&current_toml)?;
 
-    if build_file {
-        let plan = prepare_build_plan(&lock, base_dir)?;
-
+    if let Some(plan) = plan {
         let mut file = fs::OpenOptions::new()
             .write(true)
             .create(true)
@@ -273,12 +271,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
         Some(dir) => dir,
         None => Path::new("build"),
     });
-    emit_project(
-        &base_dir,
-        &cache_dir,
-        &out_bin_dir,
-        /* build_file */ false,
-    )?;
+    emit_project(&base_dir, &cache_dir, &out_bin_dir, None)?;
 
     if !args.backend_flags.is_empty() {
         let target_compiler = if let Some(backend) = &args.backend {
@@ -589,28 +582,28 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
     println!("[info] Building project...");
 
     let base_dir = match &build_args.path {
-        Some(path) => path.canonicalize()?,
-        None => std::env::current_dir()?,
+        Some(path) => path,
+        None => &std::env::current_dir()?,
     };
     fs_utils::verify_workspace(&base_dir)?;
+
     let cache_dir = base_dir.join(".csalt");
 
     let salt_toml_str = fs::read_to_string(base_dir.join("Salt.toml"))?;
     let current_toml: SaltToml = toml::from_str(&salt_toml_str)?;
 
     let lock = fs_utils::load_or_init_lock(&current_toml)?;
-    let mut build_dir = base_dir.join(
-        lock.manifest
-            .build
-            .build_dir
-            .as_deref()
-            .unwrap_or(Path::new("build")),
-    );
-    fs::create_dir_all(&build_dir)?;
-    build_dir = build_dir.canonicalize()?;
 
-    let build_file_bool = false;
-    emit_project(&base_dir, &cache_dir, &build_dir, build_file_bool)?;
+    let floating_build_dir = lock
+        .manifest
+        .build
+        .build_dir
+        .as_deref()
+        .unwrap_or(Path::new("build"));
+    let build_dir = &base_dir.join(floating_build_dir);
+    fs::create_dir_all(&build_dir)?;
+
+    emit_project(&base_dir, &cache_dir, &build_dir, None)?;
 
     let backend = if let Some(backend) = &build_args.backend {
         BuildSystems::try_from(backend.as_str())?
@@ -631,6 +624,7 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
         return Ok(());
     }
 
+    let plan = prepare_build_plan(&lock, &base_dir)?;
     match backend {
         BuildSystems::CMake => {
             let user_cmake_path = base_dir.join("CMakeLists.txt");
@@ -648,15 +642,14 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
                     "[info] No manual configuration found. Generating Fresh CMakeLists.txt..."
                 );
 
-                let build_file_bool = true;
-                emit_project(&base_dir, &cache_dir, &build_dir, build_file_bool)?;
+                emit_project(&base_dir, &cache_dir, &floating_build_dir, Some(plan))?;
             }
 
             let mut cmake_configure = std::process::Command::new("cmake");
             cmake_configure
                 .current_dir(&cache_dir)
                 .arg("-B")
-                .arg(&build_dir)
+                .arg(floating_build_dir)
                 .arg(format!(
                     "-DCMAKE_C_COMPILER={}",
                     lock.manifest.build.compiler
@@ -671,7 +664,7 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
             cmake_build
                 .current_dir(&cache_dir)
                 .arg("--build")
-                .arg(&build_dir);
+                .arg(floating_build_dir);
 
             let build_status = cmake_build.status()?;
             if !build_status.success() {
