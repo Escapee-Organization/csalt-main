@@ -140,7 +140,7 @@ pub fn init_project(dir: &Path, full: bool, stealth: bool, init_git: bool) -> an
             build_sys_ver: "3.15".to_string(),
             build_dir: Some(PathBuf::from("build/")),
             edition: config::CEditions::C11,
-            compiler: config::CompilerBackend::Clang,
+            compiler: Some(config::CompilerBackend::Clang),
         },
         unit: vec![config::UnitVector {
             name: project_name.to_string(),

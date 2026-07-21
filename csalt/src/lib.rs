@@ -277,7 +277,10 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
         let target_compiler = if let Some(backend) = &args.backend {
             CompilerBackend::try_from(backend.as_str())?
         } else {
-            lock.manifest.build.compiler
+            match lock.manifest.build.compiler {
+                Some(backend) => backend,
+                None => CompilerBackend::attempt_find_compiler()?,
+            }
         };
 
         let mut actual_compiler = target_compiler.generate_command();
@@ -302,7 +305,10 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
     let compiler_backend: CompilerBackend = if let Some(backend) = &args.backend {
         CompilerBackend::try_from(backend.as_str())?
     } else {
-        lock.manifest.build.compiler.clone()
+        match lock.manifest.build.compiler {
+            Some(ref backend) => backend.clone(),
+            None => CompilerBackend::attempt_find_compiler()?,
+        }
     };
 
     verify_command(compiler_backend.to_string().as_str())?;
@@ -660,11 +666,10 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
             cmake_configure
                 .current_dir(&cache_dir)
                 .arg("-B")
-                .arg(floating_build_dir)
-                .arg(format!(
-                    "-DCMAKE_C_COMPILER={}",
-                    lock.manifest.build.compiler
-                ));
+                .arg(floating_build_dir);
+            if let Some(compiler) = &lock.manifest.build.compiler {
+                cmake_configure.arg(format!("-DCMAKE_C_COMPILER={}", compiler));
+            }
 
             let config_status = cmake_configure.status()?;
             if !config_status.success() {

@@ -122,6 +122,26 @@ impl CompilerBackend {
         }
         format!("{}.{}", unit_name, self.get_library_extension())
     }
+
+    pub fn attempt_find_compiler() -> anyhow::Result<Self> {
+        let search_compiler_order = [
+            Self::Clang,
+            Self::Gcc,
+            Self::Zig,
+            #[cfg(feature = "experimental")]
+            Self::Msvc,
+            #[cfg(feature = "experimental")]
+            Self::ClangCl,
+        ];
+        for compiler in search_compiler_order {
+            if crate::verify_command(compiler.to_string().as_str()).is_ok() {
+                return Ok(compiler);
+            }
+        }
+        anyhow::bail!(
+            "No compiler found. Please check your PATH or environment variables, or add the compiler to `Salt.toml`."
+        )
+    }
 }
 
 impl TryFrom<&str> for CompilerBackend {
@@ -171,7 +191,7 @@ pub struct BuildSection {
     pub build_sys_ver: String,
     pub build_dir: Option<PathBuf>,
     pub edition: CEditions,
-    pub compiler: CompilerBackend,
+    pub compiler: Option<CompilerBackend>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
