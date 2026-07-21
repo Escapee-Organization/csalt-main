@@ -1,8 +1,0 @@
-[book]
-title = "C-Salt Documentation"
-authors = ["Escapee Organization"]
-language = "en"
-src = "src"
-
-[output.html]
-git-repository-url = "https://github.com/Escapee-Organization/csalt-main"

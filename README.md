@@ -14,9 +14,11 @@
 <p align="center">
   <a href="https://crates.io/crates/csalt">
     <img src="https://img.shields.io/crates/v/csalt?style=for-the-badge" alt="Crates.io Version">
-    <img src="https://img.shields.io/crates/l/csalt?style=for-the-badge" alt="Crates.io License">
-    <img src="https://img.shields.io/crates/size/csalt?style=for-the-badge" alt="Crates.io Size">
     <img src="https://img.shields.io/crates/d/csalt?style=for-the-badge" alt="Crates.io Total Downloads">
+    <img src="https://img.shields.io/crates/l/csalt?style=for-the-badge" alt="Crates.io License">
+  </a>
+  <a href="https://Escapee-Organization.github.io/csalt-book">
+    <img src="https://img.shields.io/badge/documentation-online-blue?style=for-the-badge" alt="Documentation">
   </a>
 </p>
 

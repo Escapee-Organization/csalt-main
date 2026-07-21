@@ -6,7 +6,7 @@ license = { workspace = true }
 readme = { workspace = true }
 repository = { workspace = true }
 description = { workspace = true }
-documentation = "https://Escapee-Organization.github.io/csalt-main"
+documentation = "https://Escapee-Organization.github.io/csalt-book"
 
 [[bin]]
 name = "csalt"
