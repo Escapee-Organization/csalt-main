@@ -52,7 +52,7 @@ build_sys = "cmake"
 build_sys_ver = "3.15"
 build_dir = "build/"
 edition = "c11"
-compiler = "clang"
+compiler = "clang" # As of now, only gcc, clang, and zig are supported
 
 [[unit]]
 name = "example"

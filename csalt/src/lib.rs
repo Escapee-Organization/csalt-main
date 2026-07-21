@@ -3,7 +3,7 @@
 // Copyright (c) 2026 Escapee Organization
 
 use crate::cli::{BuildArgs, CompileArgs};
-use crate::config::{BuildSystems, CEditions, CompilerBackend, SaltLock, SaltToml, UnitKinds};
+use crate::config::{BuildSystems, CompilerBackend, SaltLock, SaltToml, UnitKinds};
 use anyhow::Context;
 use std::collections::HashMap;
 use std::fs;
@@ -329,8 +329,9 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
         };
         let obj_ext = compiler_backend.get_object_extension();
         let lib_name = compiler_backend.get_library_name(&unit.name);
+        #[cfg(feature = "experimental")]
         let out_lib = cache_dir.join(&lib_name);
-
+        #[cfg(feature = "experimental")]
         let dyn_ext = util::get_dynamic_library_extension();
         let dyn_name = util::get_dynamic_library_name(&unit.name);
         let out_dyn = cache_dir.join(&dyn_name);
@@ -342,6 +343,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                 for include_path in include_paths {
                     if let Ok(absolute_inc) = include_path.canonicalize() {
                         match compiler_backend {
+                            #[cfg(feature = "experimental")]
                             CompilerBackend::Msvc | CompilerBackend::ClangCl => {
                                 target_compiler.arg(format!("/I{}", absolute_inc.display()));
                             }
@@ -372,6 +374,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                         target_compiler.arg("-c");
                     }
                 }
+                #[cfg(feature = "experimental")]
                 CompilerBackend::Msvc | CompilerBackend::ClangCl => {
                     match lock.manifest.build.edition {
                         CEditions::C11 => {
@@ -410,6 +413,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
             obj_output.set_extension(obj_ext);
 
             match compiler_backend {
+                #[cfg(feature = "experimental")]
                 CompilerBackend::Msvc | CompilerBackend::ClangCl => {
                     target_compiler.arg(format!("/Fo:{}", obj_output.to_string_lossy()));
                 }
@@ -439,6 +443,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
             );
 
             let mut ar_command = match compiler_backend {
+                #[cfg(feature = "experimental")]
                 CompilerBackend::Msvc | CompilerBackend::ClangCl => {
                     let mut cmd = std::process::Command::new("lib");
                     cmd.arg(format!("/OUT:{}", out_lib.to_string_lossy()));
@@ -517,6 +522,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                     for (dep_name, dep_kind, dep_path) in &unit.resolved_deps {
                         match dep_kind {
                             UnitKinds::Lib | UnitKinds::Dyn => match compiler_backend {
+                                #[cfg(feature = "experimental")]
                                 CompilerBackend::Msvc | CompilerBackend::ClangCl => {
                                     link_command.arg(format!("{}.{}", dep_name, dyn_ext));
                                 }
@@ -547,6 +553,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                         }
                     }
                 }
+                #[cfg(feature = "experimental")]
                 CompilerBackend::Msvc | CompilerBackend::ClangCl => {}
             }
 

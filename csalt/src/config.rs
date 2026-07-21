@@ -49,7 +49,9 @@ pub enum CompilerBackend {
     Clang,
     Gcc,
     Zig,
+    #[cfg(feature = "experimental")]
     Msvc,
+    #[cfg(feature = "experimental")]
     ClangCl,
 }
 
@@ -101,12 +103,14 @@ impl CompilerBackend {
     pub fn get_object_extension(&self) -> &str {
         match self {
             Self::Clang | Self::Gcc | Self::Zig => "o",
+            #[cfg(feature = "experimental")]
             Self::Msvc | Self::ClangCl => "obj",
         }
     }
 
     fn get_library_extension(&self) -> &str {
         match self {
+            #[cfg(feature = "experimental")]
             Self::Msvc | Self::ClangCl => "lib",
             Self::Clang | Self::Gcc | Self::Zig => "a",
         }
@@ -128,7 +132,9 @@ impl TryFrom<&str> for CompilerBackend {
             "clang" => Ok(Self::Clang),
             "gcc" => Ok(Self::Gcc),
             "zig" => Ok(Self::Zig),
+            #[cfg(feature = "experimental")]
             "cl" => Ok(Self::Msvc),
+            #[cfg(feature = "experimental")]
             "clang-cl" => Ok(Self::ClangCl),
             _ => anyhow::bail!("unknown backend"),
         }
@@ -141,7 +147,9 @@ impl std::fmt::Display for CompilerBackend {
             Self::Clang => "clang",
             Self::Gcc => "gcc",
             Self::Zig => "zig",
+            #[cfg(feature = "experimental")]
             Self::Msvc => "cl",
+            #[cfg(feature = "experimental")]
             Self::ClangCl => "clang-cl",
         };
         write!(f, "{}", s)
@@ -261,6 +269,7 @@ impl SaltToml {
             }
         }
 
+        #[cfg(feature = "experimental")]
         if self.build.edition == CEditions::C89 && self.build.compiler == CompilerBackend::Msvc {
             anyhow::bail!("C89 is not supported with MSVC");
         }
