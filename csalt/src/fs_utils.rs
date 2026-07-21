@@ -136,8 +136,8 @@ pub fn init_project(dir: &Path, full: bool, stealth: bool, init_git: bool) -> an
             description: "".to_string(),
         },
         build: config::BuildSection {
-            build_sys: config::BuildSystems::CMake,
-            build_sys_ver: "3.15".to_string(),
+            build_sys: None,
+            build_sys_ver: None,
             build_dir: Some(PathBuf::from("build/")),
             edition: config::CEditions::C11,
             compiler: Some(config::CompilerBackend::Clang),

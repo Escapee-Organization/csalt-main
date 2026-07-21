@@ -625,7 +625,11 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
     let backend = if let Some(backend) = &build_args.backend {
         BuildSystems::try_from(backend.as_str())?
     } else {
-        lock.manifest.build.build_sys.clone()
+        lock.manifest
+            .build
+            .build_sys
+            .clone()
+            .ok_or(anyhow::anyhow!("no build system specified"))?
     };
 
     if !build_args.backend_flags.is_empty() {

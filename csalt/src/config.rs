@@ -187,8 +187,9 @@ pub struct PackageSection {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BuildSection {
-    pub build_sys: BuildSystems,
-    pub build_sys_ver: String,
+    pub build_sys: Option<BuildSystems>,
+    // NOTE: Move `build_sys_ver` to use `semver`
+    pub build_sys_ver: Option<String>,
     pub build_dir: Option<PathBuf>,
     pub edition: CEditions,
     pub compiler: Option<CompilerBackend>,
@@ -294,14 +295,20 @@ impl SaltToml {
             anyhow::bail!("C89 is not supported with MSVC");
         }
 
-        if self.build.build_sys == BuildSystems::CMake {
-            let version = crate::util::normalize_semver(&self.build.build_sys_ver)?;
+        let Some(build_sys) = self.build.build_sys.clone() else {
+            return Ok(());
+        };
 
+        let Some(build_sys_ver) = &self.build.build_sys_ver else {
+            anyhow::bail!("Build system version is required");
+        };
+        let version = crate::util::normalize_semver(build_sys_ver)?;
+        if build_sys == BuildSystems::CMake {
             let minimum_required = semver::Version::parse("3.15.0")?;
             if version < minimum_required {
                 anyhow::bail!(
                     "C-Salt requires CMake version 3.15.0 or higher. Found: {}",
-                    self.build.build_sys_ver
+                    build_sys_ver
                 );
             }
         }

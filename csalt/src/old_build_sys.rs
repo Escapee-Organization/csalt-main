@@ -12,17 +12,31 @@ pub fn emit_build_file_output(
     build_dir: &std::path::Path,
     lock: &crate::SaltLock,
 ) -> anyhow::Result<String> {
+    // FIXME: Remove unnecessary clone() calls
     let mut output = String::new();
+    let raw_build_sys_ver = lock
+        .manifest
+        .build
+        .build_sys_ver
+        .clone()
+        .ok_or(anyhow::anyhow!("no build system version specified"))?;
 
-    let chosen_build_sys_ver = crate::util::normalize_semver(&lock.manifest.build.build_sys_ver)?;
-    match lock.manifest.build.build_sys {
+    let chosen_build_sys_ver = crate::util::normalize_semver(&raw_build_sys_ver)?;
+    let build_sys = lock
+        .manifest
+        .build
+        .build_sys
+        .clone()
+        .ok_or(anyhow::anyhow!("no build system specified"))?;
+
+    match build_sys {
         BuildSystems::CMake => {
             let ver_3_15 = semver::VersionReq::parse(">=3.15.0")?;
             if ver_3_15.matches(&chosen_build_sys_ver) {
                 writeln!(
                     output,
                     "cmake_minimum_required(VERSION {})",
-                    lock.manifest.build.build_sys_ver
+                    chosen_build_sys_ver
                 )?;
                 writeln!(
                     output,
