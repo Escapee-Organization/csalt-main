@@ -1,3 +1,4 @@
 **/target
+# Use this for quick tests with the C-Salt CLI
 **/salt-test
 .DS_Store
