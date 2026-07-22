@@ -67,7 +67,17 @@ fn run_csalt() -> anyhow::Result<()> {
         }
 
         Commands::Clean { path } => {
-            fs_utils::clean_cache_dir(path.clone())?;
+            let base_dir = path.clone().unwrap_or(std::env::current_dir()?);
+            let toml = toml::from_str(&std::fs::read_to_string(base_dir.join("Salt.toml"))?)?;
+            let lock = csalt::fs_utils::load_or_init_lock(&toml)?;
+            let build_dir = base_dir.join(
+                lock.manifest
+                    .build
+                    .build_dir
+                    .as_deref()
+                    .unwrap_or(std::path::Path::new("build")),
+            );
+            fs_utils::clean_cache_dir(Some(base_dir), Some(build_dir))?;
             println!("[Success] Cache directory cleaned successfully");
         }
 

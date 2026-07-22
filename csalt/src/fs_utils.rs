@@ -27,7 +27,10 @@ pub fn verify_workspace(base_dir: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn clean_cache_dir(base_dir: Option<PathBuf>) -> anyhow::Result<()> {
+pub fn clean_cache_dir(
+    base_dir: Option<PathBuf>,
+    build_dir: Option<PathBuf>,
+) -> anyhow::Result<()> {
     let base_directory = base_dir
         .unwrap_or(std::env::current_dir()?)
         .canonicalize()?;
@@ -36,15 +39,21 @@ pub fn clean_cache_dir(base_dir: Option<PathBuf>) -> anyhow::Result<()> {
     if cache_dir.exists() {
         fs::remove_dir_all(&cache_dir)?;
     }
-
     fs::create_dir_all(cache_dir).map_err(io::Error::other)?;
+
+    let build_dir = base_directory.join(build_dir.unwrap_or_else(|| PathBuf::from("build")));
+    fs::create_dir_all(&build_dir).map_err(io::Error::other)?;
     Ok(())
 }
 
 /// Copies project files to the cache directory, excluding `Salt.lock`, `Salt.toml`, and others
 /// TODO: Consider using `Salt.lock` to exclude unnecessary file copying and cache cleaning
-pub fn copy_project_files(base_dir: &Path, cache_dir: &Path) -> anyhow::Result<()> {
-    clean_cache_dir(Some(base_dir.to_path_buf()))?;
+pub fn copy_project_files(
+    base_dir: &Path,
+    cache_dir: &Path,
+    build_dir: &Path,
+) -> anyhow::Result<()> {
+    clean_cache_dir(Some(base_dir.to_path_buf()), Some(build_dir.to_path_buf()))?;
     let excluded_dirs = [".csalt", ".git", "build"];
     let excluded_files = ["Salt.toml", "Salt.lock", ".gitignore"];
 
