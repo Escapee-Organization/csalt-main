@@ -117,6 +117,7 @@ csalt --help
   - `dyn` (dynamic library, e.g. `libmath.dll` or `libmath.so`)
   - `extlib` (pre-compiled static library path, e.g. `libmath.a` or `math.lib`)
   - `extdyn` (pre-compiled dynamic library path, e.g. `libmath.dll` or `libmath.so`)
+  - `pkg` (package, usually managed by `pkg-config`)
   - **NOTE**: `extdyn` and `dyn` have caused the original creator many issues, especially late at night for cross-platform uses, so they may not be complete
 
 ## AI Usage Disclosure

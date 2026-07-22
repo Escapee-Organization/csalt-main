@@ -17,6 +17,7 @@ use std::process::Command;
 /// - `bin`: A binary executable
 /// - `extlib`: A pre-compiled static library
 /// - `extdyn`: A pre-compiled dynamic library
+/// - `pkg`: A package, usually managed by `pkg-config`
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum UnitKinds {
