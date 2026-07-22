@@ -20,6 +20,7 @@ fn cmake_test() {
     let result = build_managed_project(&BuildArgs {
         backend: None,
         path: Some(PathBuf::from(test_root)),
+        mode: None,
         backend_flags: Vec::new(),
     });
 

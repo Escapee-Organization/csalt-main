@@ -71,8 +71,8 @@ fn run_csalt() -> anyhow::Result<()> {
             println!("[Success] Cache directory cleaned successfully");
         }
 
-        Commands::Build(_build_args) => {
-            build_managed_project(_build_args)?;
+        Commands::Build(build_args) => {
+            build_managed_project(build_args)?;
             println!("[Success] Project built successfully");
         }
     }

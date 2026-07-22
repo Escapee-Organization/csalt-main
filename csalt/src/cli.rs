@@ -116,6 +116,10 @@ pub struct BuildArgs {
     #[arg(long = "path")]
     pub path: Option<PathBuf>,
 
+    /// Override the mode of operation, such as `fresh` or `managed`
+    #[arg(long = "mode")]
+    pub mode: Option<String>,
+
     /// Trailing parameters forwarded completely intact to the backend compiler layer
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, action = ArgAction::Append)]
     pub backend_flags: Vec<String>,

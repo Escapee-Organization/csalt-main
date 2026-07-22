@@ -24,6 +24,7 @@ pub mod transpile;
 pub mod util;
 
 // ---------------------- DATA ----------------------
+
 const LOCK_VERSION: &str = "0.1.0";
 
 pub struct PreparedUnit {
@@ -40,6 +41,20 @@ pub struct PreparedUnit {
 pub enum BuildMode {
     Managed,
     Fresh,
+}
+
+// ---------------- DATA -> FUNCTIONS ----------------
+
+impl TryFrom<&str> for BuildMode {
+    type Error = anyhow::Error;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        match s {
+            "managed" => Ok(BuildMode::Managed),
+            "fresh" => Ok(BuildMode::Fresh),
+            _ => anyhow::bail!("Invalid build mode: {}", s),
+        }
+    }
 }
 
 // -------------------- FUNCTIONS --------------------
@@ -649,7 +664,9 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
     match backend {
         BuildSystems::CMake => {
             let user_cmake_path = base_dir.join("CMakeLists.txt");
-            let mode = if user_cmake_path.exists() {
+            let mode = if let Some(mode) = &build_args.mode {
+                BuildMode::try_from(mode.as_str())?
+            } else if user_cmake_path.exists() {
                 BuildMode::Managed
             } else {
                 BuildMode::Fresh
