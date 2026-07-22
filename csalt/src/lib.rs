@@ -139,6 +139,66 @@ pub fn emit_project(
     Ok(())
 }
 
+fn save_flag(flag: &str, compiler: &mut Vec<String>, linker: &mut Vec<String>) {
+    let trimmed = flag.trim();
+    if trimmed.is_empty() {
+        return;
+    }
+
+    if trimmed.starts_with("-I") {
+        compiler.push(trimmed.to_string());
+    } else if trimmed.starts_with("-L") || trimmed.starts_with("-l") {
+        linker.push(trimmed.to_string());
+    }
+}
+
+/// Parses compiler/linker flags from the raw stdout of a `pkg-config` call.
+///
+/// This function parses flags in a linear, character-by-character scan.
+/// It saves the current flag to the compiler/linker vector when reaching a new flag boundary.
+/// ### Example
+/// ```rust
+/// let raw_stdout = "Compilation flags: -I/usr/include -L/usr/lib -l";
+/// let mut true_compiler_flags = Vec::new();
+/// let mut true_linker_flags = Vec::new();
+/// parse_flags_linear(raw_stdout, &mut true_compiler_flags, &mut true_linker_flags);
+/// assert_eq!(true_compiler_flags, vec!["-I/usr/include"]);
+/// assert_eq!(true_linker_flags, vec!["-L/usr/lib", "-l"]);
+/// ```
+fn parse_flags_linear(
+    raw_stdout: &str,
+    true_compiler_flags: &mut Vec<String>,
+    true_linker_flags: &mut Vec<String>,
+) {
+    let chars: Vec<char> = raw_stdout.chars().collect();
+    let mut current_flag = String::new();
+    let mut i = 0;
+
+    while i < chars.len() {
+        if chars[i] == '-'
+            && i + 1 < chars.len()
+            && (chars[i + 1] == 'I' || chars[i + 1] == 'L' || chars[i + 1] == 'l')
+        {
+            let is_new_flag = i == 0 || chars[i - 1].is_whitespace();
+
+            if is_new_flag {
+                save_flag(&current_flag, true_compiler_flags, true_linker_flags);
+                current_flag.clear();
+
+                current_flag.push(chars[i]);
+                current_flag.push(chars[i + 1]);
+                i += 2;
+                continue;
+            }
+        }
+
+        current_flag.push(chars[i]);
+        i += 1;
+    }
+
+    save_flag(&current_flag, true_compiler_flags, true_linker_flags);
+}
+
 /// Prepares the build plan for the project.
 ///
 /// This function takes the lock file and prepares a list of units to correct into a plan.
@@ -253,37 +313,11 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
                         if out.status.success() {
                             let raw_stdout = String::from_utf8_lossy(&out.stdout);
 
-                            /* Regex to parse CLI flags into kind and path/name.
-                             *
-                             * ### Behavior
-                             * This looks for flag indicators (`-I`, `-L`, `-L`) and captures the path/name after each,
-                             * stopping before the next flag.
-                             *
-                             * ### Capture Groups
-                             * **Group 1 (Kind):** `(-[ILl])` -> Matches the flag indicator.
-                             * **Group 2 (Path/name):** Matches the path/argument, stopping before the next flag.
-                             * ### Example
-                             * ```
-                             * "-I/my-cool-path -L/folder name"
-                             *   => Pair 1: Kind: "-I", Path: "/my-cool-path"
-                             *   => Pair 2: Kind: "-L", Path: "/folder name"
-                             * ```
-                             */
-                            let flag_regex: regex::Regex =
-                                regex::Regex::new(r"(-[ILl])((?:[^\s]|\s+(?!-[ILl]))+)")
-                                    .map_err(|e| anyhow::anyhow!(e))?;
-
-                            for caps in flag_regex.captures_iter(&raw_stdout) {
-                                let prefix = &caps[1];
-                                let value = caps[2].trim();
-                                let full_flag = format!("{}{}", prefix, value);
-
-                                if prefix == "-I" {
-                                    true_compiler_flags.push(full_flag);
-                                } else if prefix == "-L" || prefix == "-l" {
-                                    true_linker_flags.push(full_flag);
-                                }
-                            }
+                            parse_flags_linear(
+                                &raw_stdout,
+                                &mut true_compiler_flags,
+                                &mut true_linker_flags,
+                            );
                         }
                     } else {
                         anyhow::bail!("Failed to call `pkg-config`");
