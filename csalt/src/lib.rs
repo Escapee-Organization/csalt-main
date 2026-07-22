@@ -190,57 +190,109 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
         // TODO: Refactor directory scanning into a shared path resolution engine to remove duplicate code blocks. FORGIVE ME.
 
         let mut gathered_include_files = std::collections::BTreeSet::new();
+        let include = &unit.include;
 
-        if let Some(include) = &unit.include {
-            for include_path in include {
-                let target = util::clean_windows_path(if include_path.is_absolute() {
-                    include_path.to_path_buf()
-                } else {
-                    base_dir.join(include_path)
-                });
+        for include_path in include.into_iter().flatten() {
+            let target = util::clean_windows_path(if include_path.is_absolute() {
+                include_path.to_path_buf()
+            } else {
+                base_dir.join(include_path)
+            });
 
-                if target.exists() {
-                    gathered_include_files.insert(target);
-                } else {
-                    anyhow::bail!(
-                        "File '{}' not found for include in unit '{}'",
-                        target.display(),
-                        unit.name
-                    );
-                }
+            if target.exists() {
+                gathered_include_files.insert(target);
+            } else {
+                anyhow::bail!(
+                    "File '{}' not found for include in unit '{}'",
+                    target.display(),
+                    unit.name
+                );
             }
         }
 
         let mut resolved_dependencies = Vec::new();
-        if let Some(deps) = &unit.deps {
-            for dep in deps {
-                let Some(kind) = known_units.get(dep) else {
-                    continue;
+        let deps = &unit.deps;
+        let mut true_compiler_flags = unit.compiler_flags.clone().unwrap_or_default();
+        let mut true_linker_flags = unit.linker_flags.clone().unwrap_or_default();
+
+        for dep in deps.into_iter().flatten() {
+            let Some(kind) = known_units.get(dep) else {
+                continue;
+            };
+
+            let mut dep_path: Option<PathBuf> = None;
+            if *kind == UnitKinds::ExtLib || *kind == UnitKinds::ExtDyn {
+                /* NOTE: Since we treat the first file in 'src' as the pre-compiled binary,
+                 * we use it as the dependency path if available.
+                 */
+                let dep_unit = lock.manifest.unit.iter().find(|u| u.name == *dep);
+                let first_src = dep_unit.and_then(|u| u.src.first());
+
+                let Some(src) = first_src else {
+                    anyhow::bail!(
+                        "External library unit '{}' must specify the pre-compiled binary file path in 'src'",
+                        dep
+                    );
                 };
 
-                let mut dep_path: Option<PathBuf> = None;
-                if *kind == UnitKinds::ExtLib || *kind == UnitKinds::ExtDyn {
-                    /* NOTE: Since we treat the first file in 'src' as the pre-compiled binary,
-                     * we use it as the dependency path if available.
-                     */
-                    let dep_unit = lock.manifest.unit.iter().find(|u| u.name == *dep);
-                    let first_src = dep_unit.and_then(|u| u.src.first());
-
-                    let Some(src) = first_src else {
-                        anyhow::bail!(
-                            "External library unit '{}' must specify the pre-compiled binary file path in 'src'",
-                            dep
-                        );
-                    };
-
-                    dep_path = Some(util::clean_windows_path(if src.is_absolute() {
-                        src.to_path_buf()
-                    } else {
-                        base_dir.join(src)
-                    }));
-                }
-                resolved_dependencies.push((dep.clone(), kind.clone(), dep_path));
+                dep_path = Some(util::clean_windows_path(if src.is_absolute() {
+                    src.to_path_buf()
+                } else {
+                    base_dir.join(src)
+                }));
             }
+
+            if *kind == UnitKinds::Pkg {
+                if verify_command("pkg-config").is_ok() {
+                    let output = std::process::Command::new("pkg-config")
+                        .arg("--libs")
+                        .arg("--cflags")
+                        .arg(dep)
+                        .output();
+                    if let Ok(out) = output {
+                        if out.status.success() {
+                            let raw_stdout = String::from_utf8_lossy(&out.stdout);
+
+                            /* Regex to parse CLI flags into kind and path/name.
+                             *
+                             * ### Behavior
+                             * This looks for flag indicators (`-I`, `-L`, `-L`) and captures the path/name after each,
+                             * stopping before the next flag.
+                             *
+                             * ### Capture Groups
+                             * **Group 1 (Kind):** `(-[ILl])` -> Matches the flag indicator.
+                             * **Group 2 (Path/name):** Matches the path/argument, stopping before the next flag.
+                             * ### Example
+                             * ```
+                             * "-I/my-cool-path -L/folder name"
+                             *   => Pair 1: Kind: "-I", Path: "/my-cool-path"
+                             *   => Pair 2: Kind: "-L", Path: "/folder name"
+                             * ```
+                             */
+                            let flag_regex: regex::Regex =
+                                regex::Regex::new(r"(-[ILl])((?:[^\s]|\s+(?!-[ILl]))+)")
+                                    .map_err(|e| anyhow::anyhow!(e))?;
+
+                            for caps in flag_regex.captures_iter(&raw_stdout) {
+                                let prefix = &caps[1];
+                                let value = caps[2].trim();
+                                let full_flag = format!("{}{}", prefix, value);
+
+                                if prefix == "-I" {
+                                    true_compiler_flags.push(full_flag);
+                                } else if prefix == "-L" || prefix == "-l" {
+                                    true_linker_flags.push(full_flag);
+                                }
+                            }
+                        }
+                    } else {
+                        anyhow::bail!("Failed to call `pkg-config`");
+                    }
+                } else {
+                    anyhow::bail!("Could not find `pkg-config` for unit `{}`", unit.name);
+                }
+            }
+            resolved_dependencies.push((dep.clone(), kind.clone(), dep_path));
         }
 
         plan.push(PreparedUnit {
@@ -250,8 +302,8 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
             include: (!gathered_include_files.is_empty())
                 .then(|| gathered_include_files.into_iter().collect()),
             resolved_deps: resolved_dependencies,
-            compiler_flags: unit.compiler_flags.clone().unwrap_or_default(),
-            linker_flags: unit.linker_flags.clone().unwrap_or_default(),
+            compiler_flags: true_compiler_flags,
+            linker_flags: true_linker_flags,
         });
     }
 

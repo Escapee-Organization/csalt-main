@@ -108,6 +108,12 @@ pub fn emit_build_file_output(
                                 src_paths.replace('"', "")
                             )?;
                         }
+                        UnitKinds::Pkg => {
+                            // FIXME: Add support for Pkg units via pkg-config for now
+                            anyhow::bail!(
+                                "<todo> Pkg units are not supported yet. Consider doing it manually until this is patched"
+                            );
+                        }
                     }
                     if let Some(includes) = &unit.include {
                         for inc in includes {

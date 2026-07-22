@@ -25,6 +25,7 @@ pub enum UnitKinds {
     Bin,
     ExtLib,
     ExtDyn,
+    Pkg,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -247,14 +248,20 @@ impl SaltToml {
             }
 
             if target.src.is_empty() {
-                anyhow::bail!(
-                    "Unit '{}' must specify at least one source file or directory",
-                    target.name
-                );
+                if !matches!(target.kind, UnitKinds::Pkg) {
+                    anyhow::bail!(
+                        "Unit '{}' must specify at least one source file or directory",
+                        target.name
+                    );
+                }
             }
 
             match target.kind {
-                UnitKinds::Lib | UnitKinds::Dyn | UnitKinds::ExtLib | UnitKinds::ExtDyn => {
+                UnitKinds::Lib
+                | UnitKinds::Dyn
+                | UnitKinds::ExtLib
+                | UnitKinds::ExtDyn
+                | UnitKinds::Pkg => {
                     if seen_bin {
                         anyhow::bail!(
                             "The {:?} unit '{}' must come before Bin targets",
