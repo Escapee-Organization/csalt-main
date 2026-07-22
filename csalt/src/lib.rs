@@ -139,7 +139,7 @@ pub fn emit_project(
     Ok(())
 }
 
-fn save_flag(flag: &str, compiler: &mut Vec<String>, linker: &mut Vec<String>) {
+pub fn save_flag(flag: &str, compiler: &mut Vec<String>, linker: &mut Vec<String>) {
     let trimmed = flag.trim();
     if trimmed.is_empty() {
         return;
@@ -165,7 +165,7 @@ fn save_flag(flag: &str, compiler: &mut Vec<String>, linker: &mut Vec<String>) {
 /// assert_eq!(true_compiler_flags, vec!["-I/usr/include"]);
 /// assert_eq!(true_linker_flags, vec!["-L/usr/lib", "-l"]);
 /// ```
-fn parse_flags_linear(
+pub fn parse_flags_linear(
     raw_stdout: &str,
     true_compiler_flags: &mut Vec<String>,
     true_linker_flags: &mut Vec<String>,
