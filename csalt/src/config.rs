@@ -248,13 +248,11 @@ impl SaltToml {
                 anyhow::bail!("Duplicate unit name found: '{}'", target.name);
             }
 
-            if target.src.is_empty() {
-                if !matches!(target.kind, UnitKinds::Pkg) {
-                    anyhow::bail!(
-                        "Unit '{}' must specify at least one source file or directory",
-                        target.name
-                    );
-                }
+            if target.src.is_empty() && !matches!(target.kind, UnitKinds::Pkg) {
+                anyhow::bail!(
+                    "Unit '{}' must specify at least one source file or directory",
+                    target.name
+                );
             }
 
             match target.kind {

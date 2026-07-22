@@ -252,7 +252,7 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
         let mut gathered_include_files = std::collections::BTreeSet::new();
         let include = &unit.include;
 
-        for include_path in include.into_iter().flatten() {
+        for include_path in include.iter().flatten() {
             let target = util::clean_windows_path(if include_path.is_absolute() {
                 include_path.to_path_buf()
             } else {
@@ -275,7 +275,7 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
         let mut true_compiler_flags = unit.compiler_flags.clone().unwrap_or_default();
         let mut true_linker_flags = unit.linker_flags.clone().unwrap_or_default();
 
-        for dep in deps.into_iter().flatten() {
+        for dep in deps.iter().flatten() {
             let Some(kind) = known_units.get(dep) else {
                 continue;
             };
