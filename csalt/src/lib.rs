@@ -161,7 +161,7 @@ pub fn save_flag(flag: &str, compiler: &mut Vec<String>, linker: &mut Vec<String
 /// let raw_stdout = "Compilation flags: -I/usr/include -L/usr/lib -l";
 /// let mut true_compiler_flags = Vec::new();
 /// let mut true_linker_flags = Vec::new();
-/// parse_flags_linear(raw_stdout, &mut true_compiler_flags, &mut true_linker_flags);
+/// csalt::parse_flags_linear(raw_stdout, &mut true_compiler_flags, &mut true_linker_flags);
 /// assert_eq!(true_compiler_flags, vec!["-I/usr/include"]);
 /// assert_eq!(true_linker_flags, vec!["-L/usr/lib", "-l"]);
 /// ```
