@@ -20,7 +20,6 @@ pub mod cli;
 pub mod config;
 pub mod fs_utils;
 pub mod old_build_sys;
-pub mod transpile;
 pub mod util;
 
 // ---------------------- DATA ----------------------
@@ -364,13 +363,6 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
     Ok(plan)
 }
 
-/*  To compile a project manually (assuming the default mode), we must follow specific steps:
- *  1. Check Salt.lock's cache to see what changed
- *  2. Run the header file engine
- *  3. Transpile the source code
- *  4. Link the transpiled code with the backend compiler
- *  5. Output the compiled binary to build/
- */
 pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
     println!("[info] Compiling project...");
 

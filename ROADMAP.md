@@ -53,28 +53,11 @@ These features represent the transition from a pure build manager to an expressi
 - [ ] **Target Languages Considered**: Rust, Python, Go.
 - [ ] Create as separate crate to avoid bloating `csalt` and allow much wider usage.
 
-### 2. Basic Syntax Transpilation
-- [ ] Introduce transparent keyword lowering for cleaner variable allocation syntax (e.g., lowering `vari x: int;` down to standard `int x;`).
-
 ---
 
 ## Phase 2: Advanced Language Horizons (2027+)
 
-**IF** C-Salt manages to be **robust** and **dependable**, then sneaking in high-level language expressiveness and integrated safety contracts is easy.
+**IF** C-Salt manages to be **robust** and **dependable**, then sneaking in high-level language expressiveness and integrated safety contracts is easier.
 
-### 1. Modern Semantic Additions
-- [ ] Investigate compile-time macro code generation for modern language ergonomics like safe scope cleanup (`__defer`) and structural switching (`__match`).
-
-### 2. Isolated Formal Verification Contracts
-- [ ] Explore a declarative binding approach to attach formal verification (and more) directly to named C targets. This would transpile to FragmaC comments or be passed directly into a solver.
-- ```c
-  __bind_to_fnct my_function {
-      __require(...);
-      __ensure(...);
-  }
-
-  int my_function() {
-      // Verified code block
-  }
-    ```
-- Another way to do this would be to simply use the FragmaC comments directly in the C source.
+### 1. Isolated Formal Verification Contracts
+- [ ] Explore a declarative binding approach to attach formal verification (and more) directly to named C targets. This would be written as comments and then passed to FragmaC or another solver like Z3.
