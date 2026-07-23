@@ -35,6 +35,8 @@ pub struct PreparedUnit {
     pub resolved_deps: Vec<(String, UnitKinds, Option<PathBuf>)>,
     pub compiler_flags: Vec<String>,
     pub linker_flags: Vec<String>,
+    pub unpack_compiler_flags: Vec<String>,
+    pub unpack_linker_flags: Vec<String>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -162,6 +164,7 @@ pub fn save_flag(flag: &str, compiler: &mut Vec<String>, linker: &mut Vec<String
 /// let mut true_compiler_flags = Vec::new();
 /// let mut true_linker_flags = Vec::new();
 /// csalt::parse_flags_linear(raw_stdout, &mut true_compiler_flags, &mut true_linker_flags);
+///
 /// assert_eq!(true_compiler_flags, vec!["-I/usr/include"]);
 /// assert_eq!(true_linker_flags, vec!["-L/usr/lib", "-l"]);
 /// ```
@@ -218,6 +221,9 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
         .map(|u| (u.name.clone(), u.kind.clone()))
         .collect();
 
+    // A map of package names to their compiler and linker flags.
+    let mut known_packages: HashMap<String, (Vec<String>, Vec<String>)> = HashMap::new();
+
     for unit in &lock.manifest.unit {
         let mut gathered_src_files = std::collections::BTreeSet::new();
 
@@ -272,8 +278,8 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
 
         let mut resolved_dependencies = Vec::new();
         let deps = &unit.deps;
-        let mut true_compiler_flags = unit.compiler_flags.clone().unwrap_or_default();
-        let mut true_linker_flags = unit.linker_flags.clone().unwrap_or_default();
+        let mut new_compiler_flags = Vec::new();
+        let mut new_linker_flags = Vec::new();
 
         for dep in deps.iter().flatten() {
             let Some(kind) = known_units.get(dep) else {
@@ -303,6 +309,14 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
             }
 
             if *kind == UnitKinds::Pkg {
+                if known_packages.contains_key(dep) {
+                    let (compiler_flags, linker_flags) = known_packages
+                        .get(dep)
+                        .ok_or(anyhow::anyhow!("Unknown package: {}", dep))?;
+                    new_compiler_flags.extend(compiler_flags.clone());
+                    new_linker_flags.extend(linker_flags.clone());
+                    continue;
+                }
                 if verify_command("pkg-config").is_ok() {
                     let output = std::process::Command::new("pkg-config")
                         .arg("--libs")
@@ -315,8 +329,12 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
 
                             parse_flags_linear(
                                 &raw_stdout,
-                                &mut true_compiler_flags,
-                                &mut true_linker_flags,
+                                &mut new_compiler_flags,
+                                &mut new_linker_flags,
+                            );
+                            known_packages.insert(
+                                dep.clone(),
+                                (new_compiler_flags.clone(), new_linker_flags.clone()),
                             );
                         }
                     } else {
@@ -336,8 +354,10 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
             include: (!gathered_include_files.is_empty())
                 .then(|| gathered_include_files.into_iter().collect()),
             resolved_deps: resolved_dependencies,
-            compiler_flags: true_compiler_flags,
-            linker_flags: true_linker_flags,
+            compiler_flags: unit.compiler_flags.clone().unwrap_or_default(),
+            linker_flags: unit.linker_flags.clone().unwrap_or_default(),
+            unpack_compiler_flags: new_compiler_flags.clone(),
+            unpack_linker_flags: new_linker_flags.clone(),
         });
     }
 
@@ -417,7 +437,10 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
     let debug_on = args.debug;
 
     for unit in build_plan {
-        if unit.kind == UnitKinds::ExtLib || unit.kind == UnitKinds::ExtDyn {
+        if unit.kind == UnitKinds::ExtLib
+            || unit.kind == UnitKinds::ExtDyn
+            || unit.kind == UnitKinds::Pkg
+        {
             println!(
                 "[info] Skipping pre-compiled unit: {} ({:?})",
                 unit.name, unit.kind
@@ -446,27 +469,28 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
         for src_file in &unit.src {
             println!("[info] Compiling source file: {}", src_file.display());
             let mut target_compiler = compiler_backend.generate_command();
-            if let Some(include_paths) = &unit.include {
-                for include_path in include_paths {
-                    if let Ok(absolute_inc) = include_path.canonicalize() {
-                        match compiler_backend {
-                            #[cfg(feature = "experimental")]
-                            CompilerBackend::Msvc | CompilerBackend::ClangCl => {
-                                target_compiler.arg(format!("/I{}", absolute_inc.display()));
-                            }
-                            _ => {
-                                target_compiler.arg("-I").arg(&absolute_inc);
-                            }
-                        }
-                    }
-                }
-            }
             if compiler_backend == CompilerBackend::Zig {
                 target_compiler.arg("cc");
                 if let Some(target) = &args.zig_target {
                     target_compiler.arg("-target").arg(target);
                 }
             }
+
+            let include_paths = unit.include.clone().unwrap_or_default();
+            for include_path in include_paths {
+                if let Ok(absolute_inc) = include_path.canonicalize() {
+                    match compiler_backend {
+                        #[cfg(feature = "experimental")]
+                        CompilerBackend::Msvc | CompilerBackend::ClangCl => {
+                            target_compiler.arg(format!("/I{}", absolute_inc.display()));
+                        }
+                        _ => {
+                            target_compiler.arg("-I").arg(&absolute_inc);
+                        }
+                    }
+                }
+            }
+            target_compiler.args(&unit.unpack_compiler_flags);
 
             match compiler_backend {
                 CompilerBackend::Gcc | CompilerBackend::Clang | CompilerBackend::Zig => {
@@ -625,6 +649,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                     }
 
                     link_command.arg("-L.").args(unit.linker_flags);
+                    link_command.args(&unit.unpack_linker_flags);
 
                     for (dep_name, dep_kind, dep_path) in &unit.resolved_deps {
                         match dep_kind {
