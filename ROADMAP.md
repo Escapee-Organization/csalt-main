@@ -31,11 +31,11 @@ With the baseline compiler driver operational, Phase 1 shifts toward refactoring
   - Does not support ranges yet.
 
 ### 2. Workspace Optimization
-- [ ] **Incremental Compilation Cache**: Track SHA256 hashes inside `Salt.lock` to skip rebuilding, copying, generating, or transpiling unchanged source units, maximizing performance.
+- [ ] **Incremental Compilation Cache**: Track SHA256 hashes inside `.csalt/` to skip rebuilding, copying, generating, or transpiling unchanged source units, maximizing performance.
 - [ ] **Test Symlinks**: Figure out whether symlinks should be implemented, and if so, how. Symlinks are notorious with `dyn`, however they should be considered for every file a `dyn` doesn't touch for performance.
 - [x] **Already Compiled Assets**: Add support for already-compiled assets within `Salt.toml` to allow linking of libraries and object files, etc.
   - Does not support object files yet.
-- [ ] **Compiler-Searching**: Allow for `Salt.toml` to use the compiler as an `Option<>` so C-Salt can imitate the compiler searching behavior of tools such as CMake.
+- [x] **Compiler-Searching**: Allow for `Salt.toml` to use the compiler as an `Option<>` so C-Salt can imitate the compiler searching behavior of tools such as CMake.
 
 ### 3. Syntax Generation Framework
 - [ ] **Tree-Sitter C Parser Integration**: Introduce `tree-sitter` and `tree-sitter-c` to safely inspect translation units without crashing on complex macros.
