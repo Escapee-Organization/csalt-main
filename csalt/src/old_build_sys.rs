@@ -57,9 +57,37 @@ pub fn emit_build_file_output(
                     "set(CMAKE_C_STANDARD {})\nset(CMAKE_C_STANDARD_REQUIRED ON)",
                     lock.manifest.build.edition.to_string().replace('c', "")
                 )?;
+
+                let only_packages = &build_plan
+                    .iter()
+                    .filter(|u| u.kind == UnitKinds::Pkg)
+                    .collect::<Vec<_>>();
+                if !only_packages.is_empty() {
+                    writeln!(output)?;
+                    writeln!(output, "# === PACKAGES ===")?;
+                    writeln!(output, "find_package(PkgConfig REQUIRED)")?;
+                    writeln!(output)?;
+                    for unit in only_packages {
+                        writeln!(
+                            output,
+                            "pkg_check_modules({} REQUIRED IMPORTED_TARGET {})",
+                            unit.name.to_ascii_uppercase(),
+                            unit.name
+                        )?;
+                    }
+                }
                 writeln!(output)?;
 
                 for unit in &build_plan {
+                    if unit.kind == UnitKinds::Pkg {
+                        continue;
+                    }
+                    writeln!(
+                        output,
+                        "# === UNIT: {} {} ===",
+                        unit.kind.to_string().as_str(),
+                        unit.name
+                    )?;
                     let src_paths = &unit
                         .src
                         .iter()
@@ -72,48 +100,38 @@ pub fn emit_build_file_output(
 
                     match unit.kind {
                         UnitKinds::Bin => {
-                            writeln!(output, "# === UNIT: bin {} ===", unit.name)?;
                             writeln!(output, "add_executable({} {})", unit.name, src_paths)?;
                         }
                         UnitKinds::Lib => {
-                            writeln!(output, "# === UNIT: lib {} ===", unit.name)?;
                             writeln!(output, "add_library({} STATIC {})", unit.name, src_paths)?;
                         }
                         UnitKinds::Dyn => {
-                            writeln!(output, "# === UNIT: dyn {} ===", unit.name)?;
                             writeln!(output, "add_library({} SHARED {})", unit.name, src_paths)?;
                         }
                         UnitKinds::ExtLib => {
-                            writeln!(output, "# === UNIT: extlib {} ===", unit.name)?;
                             // 1. Declare the target as an IMPORTED STATIC library
                             writeln!(output, "add_library({} STATIC IMPORTED GLOBAL)", unit.name)?;
                             // 2. Set the property pointing directly to the pre-compiled file path
                             // (Assuming `src_paths` contains the single path to your .a/.lib file)
                             writeln!(
                                 output,
-                                "set_target_properties({} PROPERTIES IMPORTED_LOCATION \"${{CMAKE_CURRENT_SOURCE_DIR}}/{}\")",
+                                "set_target_properties({} PROPERTIES IMPORTED_LOCATION \"{}\")",
                                 unit.name,
                                 src_paths.replace('"', "")
                             )?;
                         }
                         UnitKinds::ExtDyn => {
-                            writeln!(output, "# === UNIT: extdyn {} ===", unit.name)?;
                             // 1. Declare the target as an IMPORTED SHARED library
                             writeln!(output, "add_library({} SHARED IMPORTED GLOBAL)", unit.name)?;
                             // 2. Set the property pointing directly to the pre-compiled file path
                             writeln!(
                                 output,
-                                "set_target_properties({} PROPERTIES IMPORTED_LOCATION \"${{CMAKE_CURRENT_SOURCE_DIR}}/{}\")",
+                                "set_target_properties({} PROPERTIES IMPORTED_LOCATION \"{}\")",
                                 unit.name,
                                 src_paths.replace('"', "")
                             )?;
                         }
-                        UnitKinds::Pkg => {
-                            // FIXME: Add support for Pkg units via pkg-config for now
-                            anyhow::bail!(
-                                "<todo> Pkg units are not supported yet. Consider doing it manually until this is patched"
-                            );
-                        }
+                        UnitKinds::Pkg => {}
                     }
                     if let Some(includes) = &unit.include {
                         for inc in includes {
@@ -133,7 +151,13 @@ pub fn emit_build_file_output(
                         let unit_deps = &unit
                             .resolved_deps
                             .iter()
-                            .map(|(dep_name, _, _)| dep_name.clone())
+                            .map(|(dep_name, dep_kind, _)| {
+                                if dep_kind == &UnitKinds::Pkg {
+                                    format!("PkgConfig::{}", dep_name.to_ascii_uppercase())
+                                } else {
+                                    dep_name.clone()
+                                }
+                            })
                             .collect::<Vec<_>>()
                             .join(" ");
                         writeln!(output, "{})", unit_deps)?;

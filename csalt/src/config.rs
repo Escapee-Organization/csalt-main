@@ -58,6 +58,21 @@ pub enum CompilerBackend {
 }
 
 // --------- DATA STRUCTURES -> FUNCTIONS ---------
+
+impl std::fmt::Display for UnitKinds {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::Lib => "lib",
+            Self::Dyn => "dyn",
+            Self::Bin => "bin",
+            Self::ExtLib => "extlib",
+            Self::ExtDyn => "extdyn",
+            Self::Pkg => "pkg",
+        };
+        write!(f, "{}", s)
+    }
+}
+
 impl std::fmt::Display for CEditions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
