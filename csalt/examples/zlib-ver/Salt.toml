@@ -1,0 +1,21 @@
+[package]
+name = "zlib-ver"
+version = "0.1.0"
+authors = [""]
+description = ""
+
+[build]
+build_sys = "cmake"
+build_sys_ver = "3.15"
+edition = "c11"
+compiler = "clang"
+
+[[unit]]
+name = "zlib"
+kind = "pkg"
+src = [""] # Excuse the src vector being necessary here, this is an MVP
+
+[[unit]]
+name = "zlib-ver"
+kind = "bin"
+src = ["src/"]
