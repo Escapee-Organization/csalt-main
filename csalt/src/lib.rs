@@ -678,7 +678,8 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                                         .arg("-Xlinker")
                                         .arg("-rpath")
                                         .arg("-Xlinker")
-                                        .arg("@executable_path");
+                                        .arg("@executable_path")
+                                        .arg(path);
                                 }
                             }
                             _ => {}
