@@ -2,8 +2,7 @@
 // If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org.
 // Copyright (c) 2026 Escapee Organization
 
-use crate::cli::{BuildArgs, CompileArgs};
-use crate::config::{BuildSystems, CEditions, CompilerBackend, SaltLock, SaltToml, UnitKinds};
+use crate::config::{BuildSystems, CompilerBackend, SaltLock, SaltToml, UnitKinds};
 use anyhow::Context;
 use std::collections::HashMap;
 use std::fs;
@@ -20,10 +19,10 @@ pub mod cli;
 pub mod config;
 pub mod fs_utils;
 pub mod old_build_sys;
-pub mod transpile;
 pub mod util;
 
 // ---------------------- DATA ----------------------
+
 const LOCK_VERSION: &str = "0.1.0";
 
 pub struct PreparedUnit {
@@ -34,12 +33,28 @@ pub struct PreparedUnit {
     pub resolved_deps: Vec<(String, UnitKinds, Option<PathBuf>)>,
     pub compiler_flags: Vec<String>,
     pub linker_flags: Vec<String>,
+    pub unpack_compiler_flags: Vec<String>,
+    pub unpack_linker_flags: Vec<String>,
 }
 
 #[derive(Debug, PartialEq)]
 pub enum BuildMode {
     Managed,
     Fresh,
+}
+
+// ---------------- DATA -> FUNCTIONS ----------------
+
+impl TryFrom<&str> for BuildMode {
+    type Error = anyhow::Error;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        match s {
+            "managed" => Ok(BuildMode::Managed),
+            "fresh" => Ok(BuildMode::Fresh),
+            _ => anyhow::bail!("Invalid build mode: {}", s),
+        }
+    }
 }
 
 // -------------------- FUNCTIONS --------------------
@@ -105,7 +120,7 @@ pub fn emit_project(
     plan: Option<Vec<PreparedUnit>>,
 ) -> anyhow::Result<()> {
     fs_utils::verify_workspace(base_dir)?;
-    fs_utils::copy_project_files(base_dir, cache_dir)?;
+    fs_utils::copy_project_files(base_dir, cache_dir, build_dir)?;
     let salt_toml_str = fs::read_to_string(base_dir.join("Salt.toml"))?;
     let current_toml: SaltToml = toml::from_str(&salt_toml_str)?;
 
@@ -122,6 +137,89 @@ pub fn emit_project(
         writeln!(file, "{}", output)?;
     }
     Ok(())
+}
+
+// TODO: Eventually remove `no_run` via the workflow?
+/// Attaches the Zig target argument to the command if the backend is Zig.
+///
+/// # Examples
+///
+/// ```no_run
+/// let mut command = std::process::Command::new("zig");
+/// csalt::attach_zig_target_arg(csalt::config::CompilerBackend::Zig, &mut command, Some("x86_64-pc-windows-msvc".to_string()));
+/// ```
+pub fn attach_zig_target_arg(
+    compiler_backend: CompilerBackend,
+    command: &mut Command,
+    zig_target: Option<String>,
+) {
+    if compiler_backend == CompilerBackend::Zig {
+        command.arg("cc");
+        if let Some(target) = zig_target {
+            command.arg("-target").arg(target);
+        }
+    }
+}
+
+fn save_flag(flag: &str, compiler: &mut Vec<String>, linker: &mut Vec<String>) {
+    let trimmed = flag.trim();
+    if trimmed.is_empty() {
+        return;
+    }
+
+    if trimmed.starts_with("-I") {
+        compiler.push(trimmed.to_string());
+    } else if trimmed.starts_with("-L") || trimmed.starts_with("-l") {
+        linker.push(trimmed.to_string());
+    }
+}
+
+/// Parses compiler/linker flags from the raw stdout of a `pkg-config` call.
+///
+/// This function parses flags in a linear, character-by-character scan.
+/// It saves the current flag to the compiler/linker vector when reaching a new flag boundary.
+/// ### Example
+/// ```rust
+/// let raw_stdout = "Compilation flags: -I/usr/include -L/usr/lib -l";
+/// let mut true_compiler_flags = Vec::new();
+/// let mut true_linker_flags = Vec::new();
+/// csalt::parse_flags_linear(raw_stdout, &mut true_compiler_flags, &mut true_linker_flags);
+///
+/// assert_eq!(true_compiler_flags, vec!["-I/usr/include"]);
+/// assert_eq!(true_linker_flags, vec!["-L/usr/lib", "-l"]);
+/// ```
+pub fn parse_flags_linear(
+    raw_stdout: &str,
+    true_compiler_flags: &mut Vec<String>,
+    true_linker_flags: &mut Vec<String>,
+) {
+    let chars: Vec<char> = raw_stdout.chars().collect();
+    let mut current_flag = String::new();
+    let mut i = 0;
+
+    while i < chars.len() {
+        if chars[i] == '-'
+            && i + 1 < chars.len()
+            && (chars[i + 1] == 'I' || chars[i + 1] == 'L' || chars[i + 1] == 'l')
+        {
+            let is_new_flag = i == 0 || chars[i - 1].is_whitespace();
+
+            if is_new_flag {
+                save_flag(&current_flag, true_compiler_flags, true_linker_flags);
+                current_flag.clear();
+
+                current_flag.push(chars[i]);
+                current_flag.push(chars[i + 1]);
+                i += 2;
+                continue;
+            }
+        }
+
+        current_flag.push(chars[i]);
+        i += 1;
+    }
+
+    save_flag(&current_flag, true_compiler_flags, true_linker_flags);
 }
 
 /// Prepares the build plan for the project.
@@ -142,6 +240,9 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
         .iter()
         .map(|u| (u.name.clone(), u.kind.clone()))
         .collect();
+
+    // A map of package names to their compiler and linker flags.
+    let mut known_packages: HashMap<String, (Vec<String>, Vec<String>)> = HashMap::new();
 
     for unit in &lock.manifest.unit {
         let mut gathered_src_files = std::collections::BTreeSet::new();
@@ -175,57 +276,95 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
         // TODO: Refactor directory scanning into a shared path resolution engine to remove duplicate code blocks. FORGIVE ME.
 
         let mut gathered_include_files = std::collections::BTreeSet::new();
+        let include = &unit.include;
 
-        if let Some(include) = &unit.include {
-            for include_path in include {
-                let target = util::clean_windows_path(if include_path.is_absolute() {
-                    include_path.to_path_buf()
-                } else {
-                    base_dir.join(include_path)
-                });
+        for include_path in include.iter().flatten() {
+            let target = util::clean_windows_path(if include_path.is_absolute() {
+                include_path.to_path_buf()
+            } else {
+                base_dir.join(include_path)
+            });
 
-                if target.exists() {
-                    gathered_include_files.insert(target);
-                } else {
-                    anyhow::bail!(
-                        "File '{}' not found for include in unit '{}'",
-                        target.display(),
-                        unit.name
-                    );
-                }
+            if target.exists() {
+                gathered_include_files.insert(target);
+            } else {
+                anyhow::bail!(
+                    "File '{}' not found for include in unit '{}'",
+                    target.display(),
+                    unit.name
+                );
             }
         }
 
         let mut resolved_dependencies = Vec::new();
-        if let Some(deps) = &unit.deps {
-            for dep in deps {
-                let Some(kind) = known_units.get(dep) else {
-                    continue;
+        let deps = &unit.deps;
+        let mut new_compiler_flags = Vec::new();
+        let mut new_linker_flags = Vec::new();
+
+        for dep in deps.iter().flatten() {
+            let Some(kind) = known_units.get(dep) else {
+                continue;
+            };
+
+            let mut dep_path: Option<PathBuf> = None;
+            if *kind == UnitKinds::ExtLib || *kind == UnitKinds::ExtDyn {
+                /* NOTE: Since we treat the first file in 'src' as the pre-compiled binary,
+                 * we use it as the dependency path if available.
+                 */
+                let dep_unit = lock.manifest.unit.iter().find(|u| u.name == *dep);
+                let first_src = dep_unit.and_then(|u| u.src.first());
+
+                let Some(src) = first_src else {
+                    anyhow::bail!(
+                        "External library unit '{}' must specify the pre-compiled binary file path in 'src'",
+                        dep
+                    );
                 };
 
-                let mut dep_path: Option<PathBuf> = None;
-                if *kind == UnitKinds::ExtLib || *kind == UnitKinds::ExtDyn {
-                    /* NOTE: Since we treat the first file in 'src' as the pre-compiled binary,
-                     * we use it as the dependency path if available.
-                     */
-                    let dep_unit = lock.manifest.unit.iter().find(|u| u.name == *dep);
-                    let first_src = dep_unit.and_then(|u| u.src.first());
-
-                    let Some(src) = first_src else {
-                        anyhow::bail!(
-                            "External library unit '{}' must specify the pre-compiled binary file path in 'src'",
-                            dep
-                        );
-                    };
-
-                    dep_path = Some(util::clean_windows_path(if src.is_absolute() {
-                        src.to_path_buf()
-                    } else {
-                        base_dir.join(src)
-                    }));
-                }
-                resolved_dependencies.push((dep.clone(), kind.clone(), dep_path));
+                dep_path = Some(util::clean_windows_path(if src.is_absolute() {
+                    src.to_path_buf()
+                } else {
+                    base_dir.join(src)
+                }));
             }
+
+            if *kind == UnitKinds::Pkg {
+                if known_packages.contains_key(dep) {
+                    let (compiler_flags, linker_flags) = known_packages
+                        .get(dep)
+                        .ok_or(anyhow::anyhow!("Unknown package: {}", dep))?;
+                    new_compiler_flags.extend(compiler_flags.clone());
+                    new_linker_flags.extend(linker_flags.clone());
+                    continue;
+                }
+                if verify_command("pkg-config").is_ok() {
+                    let output = std::process::Command::new("pkg-config")
+                        .arg("--libs")
+                        .arg("--cflags")
+                        .arg(dep)
+                        .output();
+                    if let Ok(out) = output {
+                        if out.status.success() {
+                            let raw_stdout = String::from_utf8_lossy(&out.stdout);
+
+                            parse_flags_linear(
+                                &raw_stdout,
+                                &mut new_compiler_flags,
+                                &mut new_linker_flags,
+                            );
+                            known_packages.insert(
+                                dep.clone(),
+                                (new_compiler_flags.clone(), new_linker_flags.clone()),
+                            );
+                        }
+                    } else {
+                        anyhow::bail!("Failed to call `pkg-config`");
+                    }
+                } else {
+                    anyhow::bail!("Could not find `pkg-config` for unit `{}`", unit.name);
+                }
+            }
+            resolved_dependencies.push((dep.clone(), kind.clone(), dep_path));
         }
 
         plan.push(PreparedUnit {
@@ -237,23 +376,26 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
             resolved_deps: resolved_dependencies,
             compiler_flags: unit.compiler_flags.clone().unwrap_or_default(),
             linker_flags: unit.linker_flags.clone().unwrap_or_default(),
+            unpack_compiler_flags: new_compiler_flags.clone(),
+            unpack_linker_flags: new_linker_flags.clone(),
         });
     }
 
     Ok(plan)
 }
 
-/*  To compile a project manually (assuming the default mode), we must follow specific steps:
- *  1. Check Salt.lock's cache to see what changed
- *  2. Run the header file engine
- *  3. Transpile the source code
- *  4. Link the transpiled code with the backend compiler
- *  5. Output the compiled binary to build/
- */
-pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
+pub fn build_manual_project(
+    backend: &Option<String>,
+    path: &Option<PathBuf>,
+    _mode: &Option<String>,
+    run: bool,
+    zig_target: &Option<String>,
+    debug: bool,
+    backend_flags: &[String],
+) -> anyhow::Result<()> {
     println!("[info] Compiling project...");
 
-    let raw_base_dir = match &args.path {
+    let raw_base_dir = match path {
         Some(path) => path.canonicalize()?,
         None => std::env::current_dir()?,
     };
@@ -273,15 +415,18 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
     });
     emit_project(&base_dir, &cache_dir, &out_bin_dir, None)?;
 
-    if !args.backend_flags.is_empty() {
-        let target_compiler = if let Some(backend) = &args.backend {
+    if !backend_flags.is_empty() {
+        let target_compiler = if let Some(backend) = &backend {
             CompilerBackend::try_from(backend.as_str())?
         } else {
-            lock.manifest.build.compiler
+            match lock.manifest.build.compiler {
+                Some(backend) => backend,
+                None => CompilerBackend::attempt_find_compiler()?,
+            }
         };
 
         let mut actual_compiler = target_compiler.generate_command();
-        actual_compiler.args(args.backend_flags.iter());
+        actual_compiler.args(backend_flags.iter());
         actual_compiler.current_dir(&cache_dir);
         let status = actual_compiler.status()?;
         if !status.success() {
@@ -299,18 +444,24 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
     );
     fs::create_dir_all(&in_bin_dir)?;
 
-    let compiler_backend: CompilerBackend = if let Some(backend) = &args.backend {
+    let compiler_backend: CompilerBackend = if let Some(backend) = &backend {
         CompilerBackend::try_from(backend.as_str())?
     } else {
-        lock.manifest.build.compiler.clone()
+        match lock.manifest.build.compiler {
+            Some(ref backend) => backend.clone(),
+            None => CompilerBackend::attempt_find_compiler()?,
+        }
     };
 
     verify_command(compiler_backend.to_string().as_str())?;
     let build_plan = prepare_build_plan(&lock, &base_dir)?;
-    let debug_on = args.debug;
+    let debug_on = debug;
 
     for unit in build_plan {
-        if unit.kind == UnitKinds::ExtLib || unit.kind == UnitKinds::ExtDyn {
+        if unit.kind == UnitKinds::ExtLib
+            || unit.kind == UnitKinds::ExtDyn
+            || unit.kind == UnitKinds::Pkg
+        {
             println!(
                 "[info] Skipping pre-compiled unit: {} ({:?})",
                 unit.name, unit.kind
@@ -329,8 +480,9 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
         };
         let obj_ext = compiler_backend.get_object_extension();
         let lib_name = compiler_backend.get_library_name(&unit.name);
+        #[cfg(feature = "experimental")]
         let out_lib = cache_dir.join(&lib_name);
-
+        #[cfg(feature = "experimental")]
         let dyn_ext = util::get_dynamic_library_extension();
         let dyn_name = util::get_dynamic_library_name(&unit.name);
         let out_dyn = cache_dir.join(&dyn_name);
@@ -338,26 +490,27 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
         for src_file in &unit.src {
             println!("[info] Compiling source file: {}", src_file.display());
             let mut target_compiler = compiler_backend.generate_command();
-            if let Some(include_paths) = &unit.include {
-                for include_path in include_paths {
-                    if let Ok(absolute_inc) = include_path.canonicalize() {
-                        match compiler_backend {
-                            CompilerBackend::Msvc | CompilerBackend::ClangCl => {
-                                target_compiler.arg(format!("/I{}", absolute_inc.display()));
-                            }
-                            _ => {
-                                target_compiler.arg("-I").arg(&absolute_inc);
-                            }
+            attach_zig_target_arg(
+                compiler_backend.clone(),
+                &mut target_compiler,
+                zig_target.clone(),
+            );
+
+            let include_paths = unit.include.clone().unwrap_or_default();
+            for include_path in include_paths {
+                if let Ok(absolute_inc) = include_path.canonicalize() {
+                    match compiler_backend {
+                        #[cfg(feature = "experimental")]
+                        CompilerBackend::Msvc | CompilerBackend::ClangCl => {
+                            target_compiler.arg(format!("/I{}", absolute_inc.display()));
+                        }
+                        _ => {
+                            target_compiler.arg("-I").arg(&absolute_inc);
                         }
                     }
                 }
             }
-            if compiler_backend == CompilerBackend::Zig {
-                target_compiler.arg("cc");
-                if let Some(target) = &args.zig_target {
-                    target_compiler.arg("-target").arg(target);
-                }
-            }
+            target_compiler.args(&unit.unpack_compiler_flags);
 
             match compiler_backend {
                 CompilerBackend::Gcc | CompilerBackend::Clang | CompilerBackend::Zig => {
@@ -372,6 +525,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                         target_compiler.arg("-c");
                     }
                 }
+                #[cfg(feature = "experimental")]
                 CompilerBackend::Msvc | CompilerBackend::ClangCl => {
                     match lock.manifest.build.edition {
                         CEditions::C11 => {
@@ -410,6 +564,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
             obj_output.set_extension(obj_ext);
 
             match compiler_backend {
+                #[cfg(feature = "experimental")]
                 CompilerBackend::Msvc | CompilerBackend::ClangCl => {
                     target_compiler.arg(format!("/Fo:{}", obj_output.to_string_lossy()));
                 }
@@ -439,6 +594,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
             );
 
             let mut ar_command = match compiler_backend {
+                #[cfg(feature = "experimental")]
                 CompilerBackend::Msvc | CompilerBackend::ClangCl => {
                     let mut cmd = std::process::Command::new("lib");
                     cmd.arg(format!("/OUT:{}", out_lib.to_string_lossy()));
@@ -491,12 +647,11 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
             }
             match compiler_backend {
                 CompilerBackend::Clang | CompilerBackend::Gcc | CompilerBackend::Zig => {
-                    if compiler_backend == CompilerBackend::Zig {
-                        link_command.arg("cc");
-                        if let Some(target) = &args.zig_target {
-                            link_command.arg("-target").arg(target);
-                        }
-                    }
+                    attach_zig_target_arg(
+                        compiler_backend.clone(),
+                        &mut link_command,
+                        zig_target.clone(),
+                    );
 
                     if unit.kind == UnitKinds::Dyn {
                         link_command
@@ -513,10 +668,12 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                     }
 
                     link_command.arg("-L.").args(unit.linker_flags);
+                    link_command.args(&unit.unpack_linker_flags);
 
                     for (dep_name, dep_kind, dep_path) in &unit.resolved_deps {
                         match dep_kind {
                             UnitKinds::Lib | UnitKinds::Dyn => match compiler_backend {
+                                #[cfg(feature = "experimental")]
                                 CompilerBackend::Msvc | CompilerBackend::ClangCl => {
                                     link_command.arg(format!("{}.{}", dep_name, dyn_ext));
                                 }
@@ -540,13 +697,15 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
                                         .arg("-Xlinker")
                                         .arg("-rpath")
                                         .arg("-Xlinker")
-                                        .arg("@executable_path");
+                                        .arg("@executable_path")
+                                        .arg(path);
                                 }
                             }
                             _ => {}
                         }
                     }
                 }
+                #[cfg(feature = "experimental")]
                 CompilerBackend::Msvc | CompilerBackend::ClangCl => {}
             }
 
@@ -568,7 +727,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
     let updated_lock = serde_json::to_string(&lock)?;
     fs::write(base_dir.join("Salt.lock"), updated_lock)?;
 
-    if args.run {
+    if run {
         let mut run_command = std::process::Command::new(&out_bin_dir);
         let status = run_command.status()?;
         if !status.success() {
@@ -582,14 +741,19 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
+pub fn build_managed_project(
+    backend: &Option<String>,
+    path: &Option<PathBuf>,
+    mode: &Option<String>,
+    backend_flags: &Vec<String>,
+) -> anyhow::Result<()> {
     println!("[info] Building project...");
 
-    let base_dir = match &build_args.path {
-        Some(path) => path,
-        None => &std::env::current_dir()?,
+    let base_dir = match path {
+        Some(path) => path.to_path_buf(),
+        None => std::env::current_dir()?,
     };
-    fs_utils::verify_workspace(base_dir)?;
+    fs_utils::verify_workspace(&base_dir)?;
 
     let cache_dir = base_dir.join(".csalt");
 
@@ -607,19 +771,21 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
     let build_dir = &base_dir.join(floating_build_dir);
     fs::create_dir_all(build_dir)?;
 
-    emit_project(base_dir, &cache_dir, build_dir, None)?;
+    emit_project(&base_dir, &cache_dir, build_dir, None)?;
 
-    let backend = if let Some(backend) = &build_args.backend {
+    let backend = if let Some(backend) = backend {
         BuildSystems::try_from(backend.as_str())?
     } else {
-        lock.manifest.build.build_sys.clone()
+        lock.manifest
+            .build
+            .build_sys
+            .clone()
+            .ok_or(anyhow::anyhow!("no build system specified"))?
     };
 
-    if !build_args.backend_flags.is_empty() {
+    if !backend_flags.is_empty() {
         let mut target_build = backend.generate_command();
-        target_build
-            .args(&build_args.backend_flags)
-            .current_dir(base_dir);
+        target_build.args(backend_flags).current_dir(&base_dir);
         let status = target_build.status()?;
         if !status.success() {
             anyhow::bail!("Failed to build project");
@@ -628,11 +794,13 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let plan = prepare_build_plan(&lock, base_dir)?;
+    let plan = prepare_build_plan(&lock, &base_dir)?;
     match backend {
         BuildSystems::CMake => {
             let user_cmake_path = base_dir.join("CMakeLists.txt");
-            let mode = if user_cmake_path.exists() {
+            let mode = if let Some(mode) = mode {
+                BuildMode::try_from(mode.as_str())?
+            } else if user_cmake_path.exists() {
                 BuildMode::Managed
             } else {
                 BuildMode::Fresh
@@ -646,18 +814,17 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
                     "[info] No manual configuration found. Generating Fresh CMakeLists.txt..."
                 );
 
-                emit_project(base_dir, &cache_dir, floating_build_dir, Some(plan))?;
+                emit_project(&base_dir, &cache_dir, floating_build_dir, Some(plan))?;
             }
 
             let mut cmake_configure = std::process::Command::new("cmake");
             cmake_configure
                 .current_dir(&cache_dir)
                 .arg("-B")
-                .arg(floating_build_dir)
-                .arg(format!(
-                    "-DCMAKE_C_COMPILER={}",
-                    lock.manifest.build.compiler
-                ));
+                .arg(floating_build_dir);
+            if let Some(compiler) = &lock.manifest.build.compiler {
+                cmake_configure.arg(format!("-DCMAKE_C_COMPILER={}", compiler));
+            }
 
             let config_status = cmake_configure.status()?;
             if !config_status.success() {

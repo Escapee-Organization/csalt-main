@@ -5,7 +5,7 @@
 use clap::{ArgAction, Parser};
 use std::path::PathBuf;
 
-/// csalt - A CLI tool that makes C more modern without compromise
+/// csalt - A CLI tool that makes C modern without (much) compromise
 #[derive(Parser, Debug)]
 #[command(author = "Escapee-Organization", version, about, long_about = None, name = "csalt")]
 pub struct Args {
@@ -115,6 +115,10 @@ pub struct BuildArgs {
     /// Changes where the operation will be performed
     #[arg(long = "path")]
     pub path: Option<PathBuf>,
+
+    /// Override the mode of operation, such as `fresh` or `managed`
+    #[arg(long = "mode")]
+    pub mode: Option<String>,
 
     /// Trailing parameters forwarded completely intact to the backend compiler layer
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, action = ArgAction::Append)]

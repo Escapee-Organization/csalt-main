@@ -2,7 +2,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use csalt::build_managed_project;
-use csalt::cli::BuildArgs;
 use csalt::fs_utils::init_project;
 
 #[test]
@@ -17,11 +16,28 @@ fn cmake_test() {
 
     init_project(test_root, false, false, false).unwrap();
 
-    let result = build_managed_project(&BuildArgs {
-        backend: None,
-        path: Some(PathBuf::from(test_root)),
-        backend_flags: Vec::new(),
-    });
+    // FIXME: Make it easier to change the TOML content without a raw string or manual editing of *everything*
+    let toml_content = r#"
+        [package]
+        name = "cmake"
+        version = "1.0.0"
+        authors = [""]
+        description = ""
+
+        [build]
+        build_sys = "cmake"
+        build_sys_ver = "3.15"
+        edition = "c11"
+
+        [[unit]]
+        kind = "bin"
+        name = "test"
+        src = ["src/"]
+        "#;
+
+    std::fs::write(test_root.join("Salt.toml"), toml_content).unwrap();
+
+    let result = build_managed_project(&None, &Some(PathBuf::from(test_root)), &None, &Vec::new());
 
     assert!(
         result.is_ok(),

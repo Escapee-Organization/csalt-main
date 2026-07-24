@@ -48,5 +48,5 @@ On all issues, if you are willing to contribute, drop a comment letting us know 
 ## Where to Start
 If you are unsure of where to start contributing, here are some things to check:
 - Look for any issues which aren't resolved or being handled by someone.
-- Find a specific edge case within C-Salt (e.g. specific architecture differences or unsupported compiler commands or flags)
-- Find an issue with the label "good first issue"
+- Find a specific edge case within C-Salt (e.g. specific architecture differences or unsupported compiler commands or flags).
+- Find an issue with the label "good first issue".

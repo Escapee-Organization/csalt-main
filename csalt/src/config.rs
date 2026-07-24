@@ -17,6 +17,7 @@ use std::process::Command;
 /// - `bin`: A binary executable
 /// - `extlib`: A pre-compiled static library
 /// - `extdyn`: A pre-compiled dynamic library
+/// - `pkg`: A package, usually managed by `pkg-config`
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum UnitKinds {
@@ -25,6 +26,7 @@ pub enum UnitKinds {
     Bin,
     ExtLib,
     ExtDyn,
+    Pkg,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -49,11 +51,28 @@ pub enum CompilerBackend {
     Clang,
     Gcc,
     Zig,
+    #[cfg(feature = "experimental")]
     Msvc,
+    #[cfg(feature = "experimental")]
     ClangCl,
 }
 
 // --------- DATA STRUCTURES -> FUNCTIONS ---------
+
+impl std::fmt::Display for UnitKinds {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::Lib => "lib",
+            Self::Dyn => "dyn",
+            Self::Bin => "bin",
+            Self::ExtLib => "extlib",
+            Self::ExtDyn => "extdyn",
+            Self::Pkg => "pkg",
+        };
+        write!(f, "{}", s)
+    }
+}
+
 impl std::fmt::Display for CEditions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
@@ -101,12 +120,14 @@ impl CompilerBackend {
     pub fn get_object_extension(&self) -> &str {
         match self {
             Self::Clang | Self::Gcc | Self::Zig => "o",
+            #[cfg(feature = "experimental")]
             Self::Msvc | Self::ClangCl => "obj",
         }
     }
 
     fn get_library_extension(&self) -> &str {
         match self {
+            #[cfg(feature = "experimental")]
             Self::Msvc | Self::ClangCl => "lib",
             Self::Clang | Self::Gcc | Self::Zig => "a",
         }
@@ -118,6 +139,26 @@ impl CompilerBackend {
         }
         format!("{}.{}", unit_name, self.get_library_extension())
     }
+
+    pub fn attempt_find_compiler() -> anyhow::Result<Self> {
+        let search_compiler_order = [
+            Self::Clang,
+            Self::Gcc,
+            Self::Zig,
+            #[cfg(feature = "experimental")]
+            Self::Msvc,
+            #[cfg(feature = "experimental")]
+            Self::ClangCl,
+        ];
+        for compiler in search_compiler_order {
+            if crate::verify_command(compiler.to_string().as_str()).is_ok() {
+                return Ok(compiler);
+            }
+        }
+        anyhow::bail!(
+            "No compiler found. Please check your PATH or environment variables, or add the compiler to `Salt.toml`."
+        )
+    }
 }
 
 impl TryFrom<&str> for CompilerBackend {
@@ -128,7 +169,9 @@ impl TryFrom<&str> for CompilerBackend {
             "clang" => Ok(Self::Clang),
             "gcc" => Ok(Self::Gcc),
             "zig" => Ok(Self::Zig),
+            #[cfg(feature = "experimental")]
             "cl" => Ok(Self::Msvc),
+            #[cfg(feature = "experimental")]
             "clang-cl" => Ok(Self::ClangCl),
             _ => anyhow::bail!("unknown backend"),
         }
@@ -141,7 +184,9 @@ impl std::fmt::Display for CompilerBackend {
             Self::Clang => "clang",
             Self::Gcc => "gcc",
             Self::Zig => "zig",
+            #[cfg(feature = "experimental")]
             Self::Msvc => "cl",
+            #[cfg(feature = "experimental")]
             Self::ClangCl => "clang-cl",
         };
         write!(f, "{}", s)
@@ -159,11 +204,12 @@ pub struct PackageSection {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BuildSection {
-    pub build_sys: BuildSystems,
-    pub build_sys_ver: String,
+    pub build_sys: Option<BuildSystems>,
+    // NOTE: Move `build_sys_ver` to use `semver`
+    pub build_sys_ver: Option<String>,
     pub build_dir: Option<PathBuf>,
     pub edition: CEditions,
-    pub compiler: CompilerBackend,
+    pub compiler: Option<CompilerBackend>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -217,7 +263,7 @@ impl SaltToml {
                 anyhow::bail!("Duplicate unit name found: '{}'", target.name);
             }
 
-            if target.src.is_empty() {
+            if target.src.is_empty() && !matches!(target.kind, UnitKinds::Pkg) {
                 anyhow::bail!(
                     "Unit '{}' must specify at least one source file or directory",
                     target.name
@@ -225,7 +271,11 @@ impl SaltToml {
             }
 
             match target.kind {
-                UnitKinds::Lib | UnitKinds::Dyn | UnitKinds::ExtLib | UnitKinds::ExtDyn => {
+                UnitKinds::Lib
+                | UnitKinds::Dyn
+                | UnitKinds::ExtLib
+                | UnitKinds::ExtDyn
+                | UnitKinds::Pkg => {
                     if seen_bin {
                         anyhow::bail!(
                             "The {:?} unit '{}' must come before Bin targets",
@@ -261,18 +311,25 @@ impl SaltToml {
             }
         }
 
+        #[cfg(feature = "experimental")]
         if self.build.edition == CEditions::C89 && self.build.compiler == CompilerBackend::Msvc {
             anyhow::bail!("C89 is not supported with MSVC");
         }
 
-        if self.build.build_sys == BuildSystems::CMake {
-            let version = crate::util::normalize_semver(&self.build.build_sys_ver)?;
+        let Some(build_sys) = self.build.build_sys.clone() else {
+            return Ok(());
+        };
 
+        let Some(build_sys_ver) = &self.build.build_sys_ver else {
+            anyhow::bail!("Build system version is required");
+        };
+        let version = crate::util::normalize_semver(build_sys_ver)?;
+        if build_sys == BuildSystems::CMake {
             let minimum_required = semver::Version::parse("3.15.0")?;
             if version < minimum_required {
                 anyhow::bail!(
                     "C-Salt requires CMake version 3.15.0 or higher. Found: {}",
-                    self.build.build_sys_ver
+                    build_sys_ver
                 );
             }
         }
@@ -281,18 +338,10 @@ impl SaltToml {
     }
 }
 
-// Salt.lock
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FileState {
-    pub shadow_hash: String,
-    pub shadow_path: String,
-    #[serde(default)]
-    pub dependencies: Vec<String>,
-}
+// --------------- LOCK SECTIONS ----------------
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SaltLock {
     pub lock_version: String,
     pub manifest: SaltToml,
-    pub files: collections::BTreeMap<String, FileState>,
 }
