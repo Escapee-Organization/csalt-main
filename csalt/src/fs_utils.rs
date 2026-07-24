@@ -101,7 +101,6 @@ pub fn load_or_init_lock(current_toml: &SaltToml) -> anyhow::Result<SaltLock> {
     let perfect_salt_lock = SaltLock {
         lock_version: LOCK_VERSION.to_string(),
         manifest: current_toml.clone(),
-        files: std::collections::BTreeMap::new(),
     };
 
     if !lock_path.is_file() {

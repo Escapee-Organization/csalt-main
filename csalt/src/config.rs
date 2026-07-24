@@ -338,18 +338,10 @@ impl SaltToml {
     }
 }
 
-// Salt.lock
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FileState {
-    pub shadow_hash: String,
-    pub shadow_path: String,
-    #[serde(default)]
-    pub dependencies: Vec<String>,
-}
+// --------------- LOCK SECTIONS ----------------
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SaltLock {
     pub lock_version: String,
     pub manifest: SaltToml,
-    pub files: collections::BTreeMap<String, FileState>,
 }
