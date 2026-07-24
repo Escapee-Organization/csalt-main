@@ -2,7 +2,7 @@
 // If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org.
 // Copyright (c) 2026 Escapee Organization
 
-use crate::cli::{BuildArgs, CompileArgs};
+use crate::cli::BuildArgs;
 use crate::config::{BuildSystems, CompilerBackend, SaltLock, SaltToml, UnitKinds};
 use anyhow::Context;
 use std::collections::HashMap;
@@ -140,7 +140,29 @@ pub fn emit_project(
     Ok(())
 }
 
-pub fn save_flag(flag: &str, compiler: &mut Vec<String>, linker: &mut Vec<String>) {
+// TODO: Eventually remove `no_run` via the workflow?
+/// Attaches the Zig target argument to the command if the backend is Zig.
+///
+/// # Examples
+///
+/// ```no_run
+/// let mut command = Command::new("zig");
+/// attach_zig_target_arg(CompilerBackend::Zig, &mut command, Some("x86_64-pc-windows-msvc".to_string()));
+/// ```
+fn attach_zig_target_arg(
+    compiler_backend: CompilerBackend,
+    command: &mut Command,
+    zig_target: Option<String>,
+) {
+    if compiler_backend == CompilerBackend::Zig {
+        command.arg("cc");
+        if let Some(target) = zig_target {
+            command.arg("-target").arg(target);
+        }
+    }
+}
+
+fn save_flag(flag: &str, compiler: &mut Vec<String>, linker: &mut Vec<String>) {
     let trimmed = flag.trim();
     if trimmed.is_empty() {
         return;
@@ -167,7 +189,7 @@ pub fn save_flag(flag: &str, compiler: &mut Vec<String>, linker: &mut Vec<String
 /// assert_eq!(true_compiler_flags, vec!["-I/usr/include"]);
 /// assert_eq!(true_linker_flags, vec!["-L/usr/lib", "-l"]);
 /// ```
-pub fn parse_flags_linear(
+fn parse_flags_linear(
     raw_stdout: &str,
     true_compiler_flags: &mut Vec<String>,
     true_linker_flags: &mut Vec<String>,
@@ -363,10 +385,18 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
     Ok(plan)
 }
 
-pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
+pub fn build_manual_project(
+    backend: &Option<String>,
+    path: &Option<PathBuf>,
+    _mode: &Option<String>,
+    run: bool,
+    zig_target: &Option<String>,
+    debug: bool,
+    backend_flags: &[String],
+) -> anyhow::Result<()> {
     println!("[info] Compiling project...");
 
-    let raw_base_dir = match &args.path {
+    let raw_base_dir = match path {
         Some(path) => path.canonicalize()?,
         None => std::env::current_dir()?,
     };
@@ -386,8 +416,8 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
     });
     emit_project(&base_dir, &cache_dir, &out_bin_dir, None)?;
 
-    if !args.backend_flags.is_empty() {
-        let target_compiler = if let Some(backend) = &args.backend {
+    if !backend_flags.is_empty() {
+        let target_compiler = if let Some(backend) = &backend {
             CompilerBackend::try_from(backend.as_str())?
         } else {
             match lock.manifest.build.compiler {
@@ -397,7 +427,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
         };
 
         let mut actual_compiler = target_compiler.generate_command();
-        actual_compiler.args(args.backend_flags.iter());
+        actual_compiler.args(backend_flags.iter());
         actual_compiler.current_dir(&cache_dir);
         let status = actual_compiler.status()?;
         if !status.success() {
@@ -415,7 +445,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
     );
     fs::create_dir_all(&in_bin_dir)?;
 
-    let compiler_backend: CompilerBackend = if let Some(backend) = &args.backend {
+    let compiler_backend: CompilerBackend = if let Some(backend) = &backend {
         CompilerBackend::try_from(backend.as_str())?
     } else {
         match lock.manifest.build.compiler {
@@ -426,7 +456,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
 
     verify_command(compiler_backend.to_string().as_str())?;
     let build_plan = prepare_build_plan(&lock, &base_dir)?;
-    let debug_on = args.debug;
+    let debug_on = debug;
 
     for unit in build_plan {
         if unit.kind == UnitKinds::ExtLib
@@ -461,12 +491,11 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
         for src_file in &unit.src {
             println!("[info] Compiling source file: {}", src_file.display());
             let mut target_compiler = compiler_backend.generate_command();
-            if compiler_backend == CompilerBackend::Zig {
-                target_compiler.arg("cc");
-                if let Some(target) = &args.zig_target {
-                    target_compiler.arg("-target").arg(target);
-                }
-            }
+            attach_zig_target_arg(
+                compiler_backend.clone(),
+                &mut target_compiler,
+                zig_target.clone(),
+            );
 
             let include_paths = unit.include.clone().unwrap_or_default();
             for include_path in include_paths {
@@ -619,12 +648,11 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
             }
             match compiler_backend {
                 CompilerBackend::Clang | CompilerBackend::Gcc | CompilerBackend::Zig => {
-                    if compiler_backend == CompilerBackend::Zig {
-                        link_command.arg("cc");
-                        if let Some(target) = &args.zig_target {
-                            link_command.arg("-target").arg(target);
-                        }
-                    }
+                    attach_zig_target_arg(
+                        compiler_backend.clone(),
+                        &mut link_command,
+                        zig_target.clone(),
+                    );
 
                     if unit.kind == UnitKinds::Dyn {
                         link_command
@@ -700,7 +728,7 @@ pub fn build_manual_project(args: &CompileArgs) -> anyhow::Result<()> {
     let updated_lock = serde_json::to_string(&lock)?;
     fs::write(base_dir.join("Salt.lock"), updated_lock)?;
 
-    if args.run {
+    if run {
         let mut run_command = std::process::Command::new(&out_bin_dir);
         let status = run_command.status()?;
         if !status.success() {

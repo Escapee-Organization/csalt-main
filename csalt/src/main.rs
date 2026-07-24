@@ -41,7 +41,15 @@ fn run_csalt() -> anyhow::Result<()> {
             println!("[Success] Csalt updated successfully");
         }
         Commands::Compile(salt_args) => {
-            build_manual_project(salt_args)?;
+            build_manual_project(
+                &salt_args.backend,
+                &salt_args.path,
+                &salt_args.mode,
+                salt_args.run,
+                &salt_args.zig_target,
+                salt_args.debug,
+                &salt_args.backend_flags,
+            )?;
             println!("[Success] Project compiled successfully");
         }
 
