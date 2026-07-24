@@ -1,0 +1,78 @@
+name: Manual Draft Pre-Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v0.1.0)'
+        required: true
+        default: 'v0.1.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build and Draft Release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            binary_name: csalt-x86_64-unknown-linux-gnu
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            binary_name: csalt-aarch64-unknown-linux-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary_name: csalt-x86_64-pc-windows-msvc.exe
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            binary_name: csalt-aarch64-apple-darwin
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            binary_name: csalt-x86_64-apple-darwin
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Linux ARM Cross-Compiler
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build Binary
+        shell: bash
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+        run: cargo build -p csalt --release --target ${{ matrix.target }}
+
+      - name: Prepare Clean Asset File
+        shell: bash
+        run: |
+          mkdir -p dist
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            cp target/${{ matrix.target }}/release/csalt.exe dist/${{ matrix.binary_name }}
+          else
+            cp target/${{ matrix.target }}/release/csalt dist/${{ matrix.binary_name }}
+          fi
+
+      - name: Create Draft Pre-Release and Upload Asset
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          name: "Pre-release ${{ github.event.inputs.version }}"
+          draft: true
+          prerelease: true
+          files: dist/*
+          commitish: ${{ github.sha }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
