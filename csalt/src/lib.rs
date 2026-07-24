@@ -2,7 +2,6 @@
 // If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org.
 // Copyright (c) 2026 Escapee Organization
 
-use crate::cli::BuildArgs;
 use crate::config::{BuildSystems, CompilerBackend, SaltLock, SaltToml, UnitKinds};
 use anyhow::Context;
 use std::collections::HashMap;
@@ -742,14 +741,19 @@ pub fn build_manual_project(
     Ok(())
 }
 
-pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
+pub fn build_managed_project(
+    backend: &Option<String>,
+    path: &Option<PathBuf>,
+    mode: &Option<String>,
+    backend_flags: &Vec<String>,
+) -> anyhow::Result<()> {
     println!("[info] Building project...");
 
-    let base_dir = match &build_args.path {
-        Some(path) => path,
-        None => &std::env::current_dir()?,
+    let base_dir = match path {
+        Some(path) => path.to_path_buf(),
+        None => std::env::current_dir()?,
     };
-    fs_utils::verify_workspace(base_dir)?;
+    fs_utils::verify_workspace(&base_dir)?;
 
     let cache_dir = base_dir.join(".csalt");
 
@@ -767,9 +771,9 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
     let build_dir = &base_dir.join(floating_build_dir);
     fs::create_dir_all(build_dir)?;
 
-    emit_project(base_dir, &cache_dir, build_dir, None)?;
+    emit_project(&base_dir, &cache_dir, build_dir, None)?;
 
-    let backend = if let Some(backend) = &build_args.backend {
+    let backend = if let Some(backend) = backend {
         BuildSystems::try_from(backend.as_str())?
     } else {
         lock.manifest
@@ -779,11 +783,9 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
             .ok_or(anyhow::anyhow!("no build system specified"))?
     };
 
-    if !build_args.backend_flags.is_empty() {
+    if !backend_flags.is_empty() {
         let mut target_build = backend.generate_command();
-        target_build
-            .args(&build_args.backend_flags)
-            .current_dir(base_dir);
+        target_build.args(backend_flags).current_dir(&base_dir);
         let status = target_build.status()?;
         if !status.success() {
             anyhow::bail!("Failed to build project");
@@ -792,11 +794,11 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let plan = prepare_build_plan(&lock, base_dir)?;
+    let plan = prepare_build_plan(&lock, &base_dir)?;
     match backend {
         BuildSystems::CMake => {
             let user_cmake_path = base_dir.join("CMakeLists.txt");
-            let mode = if let Some(mode) = &build_args.mode {
+            let mode = if let Some(mode) = mode {
                 BuildMode::try_from(mode.as_str())?
             } else if user_cmake_path.exists() {
                 BuildMode::Managed
@@ -812,7 +814,7 @@ pub fn build_managed_project(build_args: &BuildArgs) -> anyhow::Result<()> {
                     "[info] No manual configuration found. Generating Fresh CMakeLists.txt..."
                 );
 
-                emit_project(base_dir, &cache_dir, floating_build_dir, Some(plan))?;
+                emit_project(&base_dir, &cache_dir, floating_build_dir, Some(plan))?;
             }
 
             let mut cmake_configure = std::process::Command::new("cmake");

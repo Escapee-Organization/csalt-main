@@ -2,7 +2,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use csalt::build_managed_project;
-use csalt::cli::BuildArgs;
 use csalt::fs_utils::init_project;
 
 #[test]
@@ -38,12 +37,7 @@ fn cmake_test() {
 
     std::fs::write(test_root.join("Salt.toml"), toml_content).unwrap();
 
-    let result = build_managed_project(&BuildArgs {
-        backend: None,
-        path: Some(PathBuf::from(test_root)),
-        mode: None,
-        backend_flags: Vec::new(),
-    });
+    let result = build_managed_project(&None, &Some(PathBuf::from(test_root)), &None, &Vec::new());
 
     assert!(
         result.is_ok(),

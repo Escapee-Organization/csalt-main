@@ -96,7 +96,12 @@ fn run_csalt() -> anyhow::Result<()> {
         }
 
         Commands::Build(build_args) => {
-            build_managed_project(build_args)?;
+            build_managed_project(
+                &build_args.backend,
+                &build_args.path,
+                &build_args.mode,
+                &build_args.backend_flags,
+            )?;
             println!("[Success] Project built successfully");
         }
     }
