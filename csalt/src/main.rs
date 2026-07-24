@@ -23,7 +23,13 @@ fn run_csalt() -> anyhow::Result<()> {
             println!("[Success] Project directory initialized successfully");
         }
         Commands::New(new_args) => {
-            fs_utils::new_project(new_args)?;
+            fs_utils::new_project(
+                &new_args.name,
+                new_args.dir.as_deref(),
+                new_args.full,
+                new_args.stealth,
+                new_args.init_git,
+            )?;
             println!(
                 "[Success] New project '{}' created successfully",
                 new_args.name
