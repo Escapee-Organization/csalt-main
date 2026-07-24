@@ -146,10 +146,10 @@ pub fn emit_project(
 /// # Examples
 ///
 /// ```no_run
-/// let mut command = Command::new("zig");
-/// attach_zig_target_arg(CompilerBackend::Zig, &mut command, Some("x86_64-pc-windows-msvc".to_string()));
+/// let mut command = std::process::Command::new("zig");
+/// csalt::attach_zig_target_arg(csalt::config::CompilerBackend::Zig, &mut command, Some("x86_64-pc-windows-msvc".to_string()));
 /// ```
-fn attach_zig_target_arg(
+pub fn attach_zig_target_arg(
     compiler_backend: CompilerBackend,
     command: &mut Command,
     zig_target: Option<String>,
@@ -189,7 +189,7 @@ fn save_flag(flag: &str, compiler: &mut Vec<String>, linker: &mut Vec<String>) {
 /// assert_eq!(true_compiler_flags, vec!["-I/usr/include"]);
 /// assert_eq!(true_linker_flags, vec!["-L/usr/lib", "-l"]);
 /// ```
-fn parse_flags_linear(
+pub fn parse_flags_linear(
     raw_stdout: &str,
     true_compiler_flags: &mut Vec<String>,
     true_linker_flags: &mut Vec<String>,
