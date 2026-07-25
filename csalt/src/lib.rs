@@ -824,13 +824,18 @@ pub fn build_managed_project(
                 .arg("-B")
                 .arg(floating_build_dir);
             if let Some(compiler) = &lock.manifest.build.compiler {
-                cmake_configure.arg(format!("-DCMAKE_C_COMPILER={}", compiler));
-                if *compiler == CompilerBackend::Zig {
-                    if let Some(target) = zig_target {
-                        cmake_configure
-                            .arg(format!("-DCMAKE_C_COMPILER_ARG1=\"cc -target {}\"", target));
-                    } else {
-                        cmake_configure.arg(format!("-DCMAKE_C_COMPILER_ARG1=cc"));
+                // NOTE: Why is it this way and not the other way?
+                if verify_command(compiler.to_string().as_str()).is_err() {
+                    eprintln!("[warning] Compiler not found: '{}'", compiler);
+                } else {
+                    cmake_configure.arg(format!("-DCMAKE_C_COMPILER={}", compiler));
+                    if *compiler == CompilerBackend::Zig {
+                        if let Some(target) = zig_target {
+                            cmake_configure
+                                .arg(format!("-DCMAKE_C_COMPILER_ARG1=\"cc -target {}\"", target));
+                        } else {
+                            cmake_configure.arg(format!("-DCMAKE_C_COMPILER_ARG1=cc"));
+                        }
                     }
                 }
             }
