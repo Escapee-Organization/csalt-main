@@ -57,3 +57,33 @@ fn test_default_project_cmake_generation() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_default_project_self_build_system() -> anyhow::Result<()> {
+    let temp_dir = tempdir()?;
+    let test_root = temp_dir.path();
+    let cache_dir = test_root.join(".csalt");
+
+    let example_src = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("examples")
+        .join("default-new-project");
+    if example_src.exists() {
+        copy_dir_all(&example_src, test_root)?;
+    } else {
+        anyhow::bail!("example source directory does not exist");
+    }
+
+    build_manual_project(
+        &None,
+        &Some(PathBuf::from(test_root)),
+        &None,
+        false,
+        &None,
+        true,
+        &Vec::new(),
+    )?;
+
+    assert!(cache_dir.exists(), "cache directory was not created!");
+
+    Ok(())
+}
