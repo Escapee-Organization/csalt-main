@@ -37,7 +37,13 @@ fn cmake_test() {
 
     std::fs::write(test_root.join("Salt.toml"), toml_content).unwrap();
 
-    let result = build_managed_project(&None, &Some(PathBuf::from(test_root)), &None, &Vec::new());
+    let result = build_managed_project(
+        &None,
+        &Some(PathBuf::from(test_root)),
+        &None,
+        &Vec::new(),
+        &None,
+    );
 
     assert!(
         result.is_ok(),

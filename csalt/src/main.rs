@@ -101,6 +101,7 @@ fn run_csalt() -> anyhow::Result<()> {
                 &build_args.path,
                 &build_args.mode,
                 &build_args.backend_flags,
+                &build_args.zig_target,
             )?;
             println!("[Success] Project built successfully");
         }
