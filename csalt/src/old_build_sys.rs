@@ -162,6 +162,26 @@ pub fn emit_build_file_output(
                             .join(" ");
                         writeln!(output, "{})", unit_deps)?;
                     }
+
+                    writeln!(output, "# --- Custom Flags ---")?;
+                    if !unit.compiler_flags.is_empty() {
+                        let c_flags = unit.compiler_flags.join(";");
+                        writeln!(
+                            output,
+                            "target_compile_options({} PRIVATE \"{}\")",
+                            unit.name, c_flags
+                        )?;
+                    }
+
+                    if !unit.linker_flags.is_empty() {
+                        let l_flags = unit.linker_flags.join(";");
+                        writeln!(
+                            output,
+                            "target_link_options({} PRIVATE \"{}\")",
+                            unit.name, l_flags
+                        )?;
+                    }
+
                     writeln!(output)?;
                 }
             } else {
