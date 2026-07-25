@@ -222,6 +222,31 @@ pub fn parse_flags_linear(
     save_flag(&current_flag, true_compiler_flags, true_linker_flags);
 }
 
+fn suggest_installation_commands(dep: &str) {
+    println!("`pkg` '{}' could not be found", dep);
+
+    let managers = [
+        ("apt", format!("apt search {} | grep dev", dep)),
+        ("dnf", format!("dnf search {}", dep)),
+        ("pacman", format!("pacman -Ss {}", dep)),
+        ("brew", format!("brew search {}", dep)),
+        ("nix", format!("nix-env -qaP '.*{}.*'", dep)),
+    ];
+
+    let mut found_any = false;
+    for (cli_name, search_command) in managers {
+        if verify_command(cli_name).is_ok() {
+            if !found_any {
+                println!("\n[help] To find '{}', run a command below:", dep);
+            }
+            println!("    {}", search_command);
+            found_any = true;
+        }
+    }
+
+    println!("[help] You may install it using alternative methods or manually");
+}
+
 /// Calls `pkg-config --libs --cflags <dep>` and takes stdout to add it to the newly generated compiler and linker flags.
 pub fn call_and_record_pkg_config(
     dep: &String,
@@ -243,6 +268,9 @@ pub fn call_and_record_pkg_config(
                 dep.clone(),
                 (new_compiler_flags.clone(), new_linker_flags.clone()),
             );
+        } else {
+            suggest_installation_commands(dep);
+            anyhow::bail!("Failed to call `pkg-config`");
         }
     } else {
         anyhow::bail!("Failed to call `pkg-config`");
