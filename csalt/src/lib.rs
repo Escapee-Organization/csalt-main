@@ -142,9 +142,9 @@ pub fn emit_project(
 // TODO: Eventually remove `no_run` via the workflow?
 /// Attaches the Zig target argument to the command if the backend is Zig.
 ///
-/// # Examples
+/// ### Example
 ///
-/// ```no_run
+/// ```
 /// let mut command = std::process::Command::new("zig");
 /// csalt::attach_zig_target_arg(csalt::config::CompilerBackend::Zig, &mut command, Some("x86_64-pc-windows-msvc".to_string()));
 /// ```
@@ -179,7 +179,7 @@ fn save_flag(flag: &str, compiler: &mut Vec<String>, linker: &mut Vec<String>) {
 /// This function parses flags in a linear, character-by-character scan.
 /// It saves the current flag to the compiler/linker vector when reaching a new flag boundary.
 /// ### Example
-/// ```rust
+/// ```
 /// let raw_stdout = "Compilation flags: -I/usr/include -L/usr/lib -l";
 /// let mut true_compiler_flags = Vec::new();
 /// let mut true_linker_flags = Vec::new();
