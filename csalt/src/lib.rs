@@ -222,6 +222,35 @@ pub fn parse_flags_linear(
     save_flag(&current_flag, true_compiler_flags, true_linker_flags);
 }
 
+/// Calls `pkg-config --libs --cflags <dep>` and takes stdout to add it to the newly generated compiler and linker flags.
+pub fn call_and_record_pkg_config(
+    dep: &String,
+    new_compiler_flags: &mut Vec<String>,
+    new_linker_flags: &mut Vec<String>,
+    known_packages: &mut HashMap<String, (Vec<String>, Vec<String>)>,
+) -> anyhow::Result<()> {
+    let output = std::process::Command::new("pkg-config")
+        .arg("--libs")
+        .arg("--cflags")
+        .arg(dep)
+        .output();
+    if let Ok(out) = output {
+        if out.status.success() {
+            let raw_stdout = String::from_utf8_lossy(&out.stdout);
+
+            parse_flags_linear(&raw_stdout, new_compiler_flags, new_linker_flags);
+            known_packages.insert(
+                dep.clone(),
+                (new_compiler_flags.clone(), new_linker_flags.clone()),
+            );
+        }
+    } else {
+        anyhow::bail!("Failed to call `pkg-config`");
+    }
+
+    Ok(())
+}
+
 /// Prepares the build plan for the project.
 ///
 /// This function takes the lock file and prepares a list of units to correct into a plan.
@@ -338,28 +367,12 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
                     continue;
                 }
                 if verify_command("pkg-config").is_ok() {
-                    let output = std::process::Command::new("pkg-config")
-                        .arg("--libs")
-                        .arg("--cflags")
-                        .arg(dep)
-                        .output();
-                    if let Ok(out) = output {
-                        if out.status.success() {
-                            let raw_stdout = String::from_utf8_lossy(&out.stdout);
-
-                            parse_flags_linear(
-                                &raw_stdout,
-                                &mut new_compiler_flags,
-                                &mut new_linker_flags,
-                            );
-                            known_packages.insert(
-                                dep.clone(),
-                                (new_compiler_flags.clone(), new_linker_flags.clone()),
-                            );
-                        }
-                    } else {
-                        anyhow::bail!("Failed to call `pkg-config`");
-                    }
+                    call_and_record_pkg_config(
+                        &dep,
+                        &mut new_compiler_flags,
+                        &mut new_linker_flags,
+                        &mut known_packages,
+                    )?;
                 } else {
                     anyhow::bail!("Could not find `pkg-config` for unit `{}`", unit.name);
                 }
