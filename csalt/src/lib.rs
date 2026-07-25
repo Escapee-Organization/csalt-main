@@ -826,6 +826,8 @@ pub fn build_managed_project(
     };
 
     if !backend_flags.is_empty() {
+        let plan = prepare_build_plan(&lock, &base_dir)?;
+        emit_project(&base_dir, &cache_dir, build_dir, Some(plan))?;
         let mut target_build = backend.generate_command();
         target_build.args(backend_flags).current_dir(&base_dir);
         let status = target_build.status()?;
