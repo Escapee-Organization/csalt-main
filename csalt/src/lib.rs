@@ -368,7 +368,7 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
                 }
                 if verify_command("pkg-config").is_ok() {
                     call_and_record_pkg_config(
-                        &dep,
+                        dep,
                         &mut new_compiler_flags,
                         &mut new_linker_flags,
                         &mut known_packages,
@@ -847,7 +847,7 @@ pub fn build_managed_project(
                             cmake_configure
                                 .arg(format!("-DCMAKE_C_COMPILER_ARG1=\"cc -target {}\"", target));
                         } else {
-                            cmake_configure.arg(format!("-DCMAKE_C_COMPILER_ARG1=cc"));
+                            cmake_configure.arg("-DCMAKE_C_COMPILER_ARG1=cc");
                         }
                     }
                 }
