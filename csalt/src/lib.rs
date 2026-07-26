@@ -370,11 +370,23 @@ pub fn build_manual_project(
                             .arg("-o")
                             .arg(&out_dyn);
                         if cfg!(target_os = "macos") {
-                            let install_name = format!("@rpath/{}", lib_name);
-                            link_command.arg("-install_name").arg(install_name);
+                            let install_name = format!("@rpath/{}", dyn_name);
+                            link_command
+                                .arg("-Xlinker")
+                                .arg("-install_name")
+                                .arg("-Xlinker")
+                                .arg(install_name);
                         }
                     } else {
                         link_command.arg("-o").arg(&output_executable);
+
+                        if cfg!(target_os = "macos") {
+                            link_command
+                                .arg("-Xlinker")
+                                .arg("-rpath")
+                                .arg("-Xlinker")
+                                .arg("@executable_path");
+                        }
                     }
 
                     link_command.arg("-L.").args(unit.linker_flags);
