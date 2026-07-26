@@ -46,6 +46,70 @@ pub fn clean_cache_dir(
     Ok(())
 }
 
+/// Walks through the directory and filters out excluded directories and files, and files with unsupported extensions. Excluded directories only apply to the current directory level.
+///
+/// ### Examples
+/// ```
+/// use csalt::fs_utils::walk_and_filter_dirs;
+/// use tempfile::tempdir;
+///
+/// let binding = tempdir().unwrap();
+/// let base_dir = binding.path();
+/// std::fs::write(&base_dir.join("test.txt"), "Hello, World!").unwrap();
+/// std::fs::create_dir(&base_dir.join("excluded")).unwrap();
+/// std::fs::write(&base_dir.join("excluded").join("test.md"), " ").unwrap();
+/// std::fs::write(&base_dir.join("excluded").join("test.txt"), " ").unwrap();
+/// std::fs::write(&base_dir.join("special.txt"), " ").unwrap();
+///
+/// let files = walk_and_filter_dirs(&base_dir, &["excluded"], &["special.txt"], &["md"]).unwrap();
+/// assert_eq!(files.len(), 1);
+/// ```
+pub fn walk_and_filter_dirs(
+    base_dir: &Path,
+    excluded_dirs: &[&str],
+    excluded_files: &[&str],
+    extension_filter: &[&str],
+) -> anyhow::Result<Vec<PathBuf>> {
+    let mut discovered_files = Vec::new();
+    let mut stack = vec![base_dir.to_path_buf()];
+
+    while let Some(current_dir) = stack.pop() {
+        for entry in fs::read_dir(&current_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            let is_dir = path.is_dir();
+            let file_name_os = path.file_name().unwrap_or_default();
+
+            if current_dir == base_dir {
+                if excluded_dirs.iter().any(|dir| file_name_os == *dir) && is_dir {
+                    continue;
+                }
+
+                if excluded_files.iter().any(|file| file_name_os == *file) {
+                    continue;
+                }
+            }
+
+            if !is_dir {
+                if !extension_filter.is_empty()
+                    && extension_filter
+                        .iter()
+                        .any(|ext| path.extension().and_then(|e| e.to_str()).unwrap_or("") == *ext)
+                {
+                    continue;
+                }
+
+                discovered_files.push(path);
+                continue;
+            }
+
+            stack.push(path);
+        }
+    }
+
+    Ok(discovered_files)
+}
+
 /// Copies project files to the cache directory, excluding `Salt.lock`, `Salt.toml`, and others
 /// TODO: Consider using `Salt.lock` to exclude unnecessary file copying and cache cleaning
 pub fn copy_project_files(
@@ -57,40 +121,18 @@ pub fn copy_project_files(
     let excluded_dirs = [".csalt", ".git", "build"];
     let excluded_files = ["Salt.toml", "Salt.lock", ".gitignore"];
 
-    let mut stack = vec![base_dir.to_path_buf()];
+    let filtered_files = walk_and_filter_dirs(base_dir, &excluded_dirs, &excluded_files, &[])?;
 
-    while let Some(current_dir) = stack.pop() {
-        for entry in fs::read_dir(&current_dir)? {
-            let entry = entry?;
+    for file in filtered_files {
+        let relative_path = file
+            .strip_prefix(base_dir)
+            .map_err(|_| anyhow::anyhow!("Failed to strip prefix from {:?}", file))?;
+        let target_path = cache_dir.join(relative_path);
 
-            let is_dir = entry.file_type()?.is_dir();
-            let file_name = entry.file_name();
-            if let Some(name) = file_name.to_str()
-                && current_dir == base_dir
-            {
-                if is_dir && excluded_dirs.contains(&name) {
-                    continue;
-                }
-
-                if !is_dir && excluded_files.contains(&name) {
-                    continue;
-                }
-            }
-
-            let path = entry.path();
-            let relative_path = path
-                .as_path()
-                .strip_prefix(base_dir)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-            let target_path = cache_dir.join(relative_path);
-
-            if is_dir {
-                fs::create_dir_all(&target_path)?;
-                stack.push(path);
-            } else {
-                fs::copy(&path, &target_path)?;
-            }
+        if let Some(parent) = target_path.parent() {
+            fs::create_dir_all(parent)?;
         }
+        fs::copy(&file, &target_path)?;
     }
 
     Ok(())
