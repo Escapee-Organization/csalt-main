@@ -344,13 +344,14 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
 
             if target.exists() {
                 gathered_include_files.insert(target);
-            } else {
-                anyhow::bail!(
-                    "File '{}' not found for include in unit '{}'",
-                    target.display(),
-                    unit.name
-                );
+                continue;
             }
+
+            anyhow::bail!(
+                "File '{}' not found for include in unit '{}'",
+                target.display(),
+                unit.name
+            );
         }
 
         let mut resolved_dependencies = Vec::new();
