@@ -50,6 +50,10 @@ pub enum Commands {
         /// Changes where the operation will be performed
         #[arg(long = "path")]
         path: Option<PathBuf>,
+
+        /// Enables verbose output
+        #[arg(long = "verbose")]
+        verbose: bool,
     },
 }
 
@@ -143,4 +147,8 @@ pub struct EmitArgs {
     /// Whether to emit a build file in `fresh` mode
     #[arg(long = "build-file")]
     pub build_file: bool,
+
+    /// Verbose mode, enables verbose output
+    #[arg(long = "verbose")]
+    pub verbose: bool,
 }

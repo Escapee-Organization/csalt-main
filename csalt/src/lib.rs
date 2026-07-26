@@ -63,9 +63,10 @@ pub fn emit_project(
     cache_dir: &Path,
     build_dir: &Path,
     plan: Option<Vec<PreparedUnit>>,
+    verbose: bool,
 ) -> anyhow::Result<()> {
     fs_utils::verify_workspace(base_dir)?;
-    fs_utils::copy_project_files(base_dir, cache_dir, build_dir)?;
+    fs_utils::copy_project_files(base_dir, cache_dir, build_dir, verbose)?;
     let salt_toml_str = fs::read_to_string(base_dir.join("Salt.toml"))?;
     let current_toml: SaltToml = toml::from_str(&salt_toml_str)?;
 
@@ -113,7 +114,7 @@ pub fn build_manual_project(
         Some(dir) => dir,
         None => Path::new("build"),
     });
-    emit_project(&base_dir, &cache_dir, &out_bin_dir, None)?;
+    emit_project(&base_dir, &cache_dir, &out_bin_dir, None, verbose_on)?;
 
     if !backend_flags.is_empty() {
         let target_compiler = if let Some(backend) = &backend {
@@ -488,7 +489,7 @@ pub fn build_managed_project(
     let build_dir = &base_dir.join(floating_build_dir);
     fs::create_dir_all(build_dir)?;
 
-    emit_project(&base_dir, &cache_dir, build_dir, None)?;
+    emit_project(&base_dir, &cache_dir, build_dir, None, verbose)?;
 
     let backend = if let Some(backend) = backend {
         BuildSystems::try_from(backend.as_str())?
@@ -502,7 +503,7 @@ pub fn build_managed_project(
 
     if !backend_flags.is_empty() {
         let plan = prepare_build_plan(&lock, &base_dir)?;
-        emit_project(&base_dir, &cache_dir, build_dir, Some(plan))?;
+        emit_project(&base_dir, &cache_dir, build_dir, Some(plan), verbose)?;
         let mut target_build = backend.generate_command();
         target_build.args(backend_flags).current_dir(&base_dir);
 
@@ -539,7 +540,13 @@ pub fn build_managed_project(
                     "[info] No manual configuration found. Generating Fresh CMakeLists.txt..."
                 );
 
-                emit_project(&base_dir, &cache_dir, floating_build_dir, Some(plan))?;
+                emit_project(
+                    &base_dir,
+                    &cache_dir,
+                    floating_build_dir,
+                    Some(plan),
+                    verbose,
+                )?;
             }
 
             let mut cmake_configure = std::process::Command::new("cmake");

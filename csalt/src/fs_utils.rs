@@ -27,22 +27,57 @@ pub fn verify_workspace(base_dir: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Removes all files or subdirectories within the given directory.
+///
+/// ### Examples
+///
+/// ```
+/// use csalt::fs_utils::clean_this_dir;
+///
+/// let temp_dir = tempfile::tempdir().unwrap();
+/// std::fs::write(&temp_dir.path().join("foo"), "bar").unwrap();
+/// clean_this_dir(&temp_dir.path(), false).unwrap();
+///
+/// assert!(!temp_dir.path().join("foo").exists());
+/// ```
+pub fn clean_this_dir(dir: &Path, verbose_on: bool) -> anyhow::Result<()> {
+    // --- VERBOSE ---
+    if verbose_on {
+        println!("[info] Cleaning directory: {}", dir.display());
+    }
+
+    if dir.exists() {
+        fs::remove_dir_all(dir).map_err(|e| anyhow::anyhow!("Failed to clean directory: {}", e))?;
+
+        // --- VERBOSE ---
+        if verbose_on {
+            println!("[info] Removing directory: {}", dir.display());
+        }
+    }
+
+    fs::create_dir_all(dir).map_err(|e| anyhow::anyhow!("Failed to recreate directory: {}", e))?;
+
+    // --- VERBOSE ---
+    if verbose_on {
+        println!("[info] Recreating directory: {}", dir.display());
+    }
+
+    Ok(())
+}
+
+// TODO: Remove this function and use above `clean_this_dir()` so you can clean both cache and build directories in one call, or separately.
 pub fn clean_cache_dir(
-    base_dir: Option<PathBuf>,
-    build_dir: Option<PathBuf>,
+    base_dir: PathBuf,
+    build_dir: PathBuf,
+    verbose_on: bool,
 ) -> anyhow::Result<()> {
-    let base_directory = base_dir
-        .unwrap_or(std::env::current_dir()?)
-        .canonicalize()?;
+    let base_directory = base_dir.canonicalize()?;
     verify_workspace(&base_directory)?;
     let cache_dir = base_directory.join(".csalt");
-    if cache_dir.exists() {
-        fs::remove_dir_all(&cache_dir)?;
-    }
-    fs::create_dir_all(cache_dir).map_err(io::Error::other)?;
 
-    let build_dir = base_directory.join(build_dir.unwrap_or_else(|| PathBuf::from("build")));
-    fs::create_dir_all(&build_dir).map_err(io::Error::other)?;
+    clean_this_dir(&cache_dir, verbose_on)?;
+    clean_this_dir(&build_dir, verbose_on)?;
+
     Ok(())
 }
 
@@ -116,8 +151,9 @@ pub fn copy_project_files(
     base_dir: &Path,
     cache_dir: &Path,
     build_dir: &Path,
+    verbose: bool,
 ) -> anyhow::Result<()> {
-    clean_cache_dir(Some(base_dir.to_path_buf()), Some(build_dir.to_path_buf()))?;
+    clean_cache_dir(base_dir.to_path_buf(), build_dir.to_path_buf(), verbose)?;
     let excluded_dirs = [".csalt", ".git", "build"];
     let excluded_files = ["Salt.toml", "Salt.lock", ".gitignore"];
 
