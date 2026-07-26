@@ -14,7 +14,8 @@ use std::process::Command;
 pub fn ensure_cache_dir() -> anyhow::Result<PathBuf> {
     let home = home_dir().ok_or(anyhow::anyhow!("Home directory not found"))?;
     let cache_dir = home.join(".csalt");
-    std::fs::create_dir_all(&cache_dir).map_err(io::Error::other)?;
+    fs::create_dir_all(&cache_dir)
+        .map_err(|e| anyhow::anyhow!("Failed to create cache directory: {}", e))?;
     Ok(cache_dir)
 }
 
@@ -187,7 +188,7 @@ fn init_and_write_main_c(dir: &Path) -> anyhow::Result<()> {
             }
             Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {}
             Err(e) => {
-                anyhow::bail!(e);
+                anyhow::bail!("Failed to write main.c: {}", e);
             }
         }
     }
@@ -273,7 +274,7 @@ pub fn init_project(dir: &Path, full: bool, stealth: bool, init_git: bool) -> an
                 println!("Salt.lock already exists: {}", e);
             }
             Err(e) => {
-                anyhow::bail!(e);
+                anyhow::bail!("Failed to create Salt.lock: {}", e);
             }
         }
     }

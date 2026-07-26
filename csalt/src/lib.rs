@@ -615,7 +615,12 @@ pub fn build_manual_project(
                 println!("[cmd compiler] {:?}", target_compiler);
             }
 
-            let status = target_compiler.current_dir(&cache_dir).status()?;
+            let status = target_compiler
+                .current_dir(&cache_dir)
+                .status()
+                .with_context(|| {
+                    format!("Failed to compile source file '{}'", relative_src.display())
+                })?;
             if !status.success() {
                 anyhow::bail!("Failed to compile source file '{}'", relative_src.display());
             }
@@ -659,7 +664,15 @@ pub fn build_manual_project(
                 println!("[cmd archiver] {:?}", ar_command);
             }
 
-            let ar_status = ar_command.current_dir(&cache_dir).status()?;
+            let ar_status = ar_command
+                .current_dir(&cache_dir)
+                .status()
+                .with_context(|| {
+                    format!(
+                        "Failed to execute static library archiver on unit: {}",
+                        unit.name
+                    )
+                })?;
             if !ar_status.success() {
                 anyhow::bail!(
                     "Failed to execute static library archiver on unit: {}",
@@ -750,7 +763,10 @@ pub fn build_manual_project(
             if verbose_on {
                 println!("[cmd linker] {:?}", link_command);
             }
-            let status = link_command.current_dir(&cache_dir).status()?;
+            let status = link_command
+                .current_dir(&cache_dir)
+                .status()
+                .with_context(|| format!("Failed to link unit '{}'", unit.name))?;
             if !status.success() {
                 anyhow::bail!("Failed to link unit '{}'", unit.name);
             }
