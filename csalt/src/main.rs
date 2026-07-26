@@ -23,7 +23,13 @@ fn run_csalt() -> anyhow::Result<()> {
             println!("[Success] Project directory initialized successfully");
         }
         Commands::New(new_args) => {
-            fs_utils::new_project(new_args)?;
+            fs_utils::new_project(
+                &new_args.name,
+                new_args.dir.as_deref(),
+                new_args.full,
+                new_args.stealth,
+                new_args.init_git,
+            )?;
             println!(
                 "[Success] New project '{}' created successfully",
                 new_args.name
@@ -35,7 +41,15 @@ fn run_csalt() -> anyhow::Result<()> {
             println!("[Success] Csalt updated successfully");
         }
         Commands::Compile(salt_args) => {
-            build_manual_project(salt_args)?;
+            build_manual_project(
+                &salt_args.backend,
+                &salt_args.path,
+                &salt_args.mode,
+                salt_args.run,
+                &salt_args.zig_target,
+                salt_args.verbose,
+                &salt_args.backend_flags,
+            )?;
             println!("[Success] Project compiled successfully");
         }
 
@@ -56,23 +70,41 @@ fn run_csalt() -> anyhow::Result<()> {
             );
             std::fs::create_dir_all(&build_dir)?;
             let build_dir = build_dir.canonicalize()?;
-            let plan = csalt::prepare_build_plan(&lock, &base_dir)?;
+            let plan = csalt::helpers::prepare_build_plan(&lock, &base_dir)?;
             emit_project(
                 &base_dir,
                 &cache_dir,
                 &build_dir,
                 emit_args.build_file.then_some(plan),
+                emit_args.verbose,
             )?;
             println!("[Success] Project emitted successfully");
         }
 
-        Commands::Clean { path } => {
-            fs_utils::clean_cache_dir(path.clone())?;
+        Commands::Clean { path, verbose } => {
+            let base_dir = path.clone().unwrap_or(std::env::current_dir()?);
+            let toml = toml::from_str(&std::fs::read_to_string(base_dir.join("Salt.toml"))?)?;
+            let lock = csalt::fs_utils::load_or_init_lock(&toml)?;
+            let build_dir = base_dir.join(
+                lock.manifest
+                    .build
+                    .build_dir
+                    .as_deref()
+                    .unwrap_or(std::path::Path::new("build")),
+            );
+            fs_utils::clean_cache_dir(base_dir, build_dir, *verbose)?;
             println!("[Success] Cache directory cleaned successfully");
         }
 
-        Commands::Build(_build_args) => {
-            build_managed_project(_build_args)?;
+        Commands::Build(build_args) => {
+            build_managed_project(
+                &build_args.backend,
+                &build_args.path,
+                &build_args.mode,
+                &build_args.backend_flags,
+                &build_args.zig_target,
+                build_args.verbose,
+            )?;
             println!("[Success] Project built successfully");
         }
     }

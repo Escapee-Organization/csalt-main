@@ -1,4 +1,35 @@
-**/target
+# === CUSTOM ===
 # Use this for quick tests with the C-Salt CLI
-**/salt-test
+**/salt-test/
+
+# === RUST ===
+**/target/
+**/*.rs.bk
+
+# === ENV ===
+
+# -- MAC --
 .DS_Store
+.AppleDouble
+.LSOverride
+
+# -- WINDOWS --
+Thumbs.db
+ehthumbs.db
+DumpStack.log.tmp
+
+# -- LINUX --
+.fuse_hidden*
+.directory
+
+# -- ZED --
+.zed/
+
+# -- VSCODE --
+.vscode/*
+!.vscode/tasks.json
+!.vscode/extensions.json
+
+# -- JETBRAINS --
+.idea/
+*.iml

@@ -5,7 +5,7 @@
 use clap::{ArgAction, Parser};
 use std::path::PathBuf;
 
-/// csalt - A CLI tool that makes C more modern without compromise
+/// csalt - A CLI tool that makes C modern without (much) compromise
 #[derive(Parser, Debug)]
 #[command(author = "Escapee-Organization", version, about, long_about = None, name = "csalt")]
 pub struct Args {
@@ -50,6 +50,10 @@ pub enum Commands {
         /// Changes where the operation will be performed
         #[arg(long = "path")]
         path: Option<PathBuf>,
+
+        /// Enables verbose output
+        #[arg(long = "verbose")]
+        verbose: bool,
     },
 }
 
@@ -97,9 +101,9 @@ pub struct CompileArgs {
     #[arg(long = "zig-target", short = 'z')]
     pub zig_target: Option<String>,
 
-    /// Debug mode, enables debug output
-    #[arg(long = "debug")]
-    pub debug: bool,
+    /// Verbose mode, enables verbose output
+    #[arg(long = "verbose")]
+    pub verbose: bool,
 
     /// Trailing parameters forwarded completely intact to the backend compiler layer
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, action = ArgAction::Append)]
@@ -116,6 +120,18 @@ pub struct BuildArgs {
     #[arg(long = "path")]
     pub path: Option<PathBuf>,
 
+    /// Override the mode of operation, such as `fresh` or `managed`
+    #[arg(long = "mode")]
+    pub mode: Option<String>,
+
+    /// ZIG ONLY: Specifies the target CPU architecture
+    #[arg(long = "zig-target", short = 'z')]
+    pub zig_target: Option<String>,
+
+    /// Verbose mode, enables verbose output
+    #[arg(long = "verbose")]
+    pub verbose: bool,
+
     /// Trailing parameters forwarded completely intact to the backend compiler layer
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, action = ArgAction::Append)]
     pub backend_flags: Vec<String>,
@@ -131,4 +147,8 @@ pub struct EmitArgs {
     /// Whether to emit a build file in `fresh` mode
     #[arg(long = "build-file")]
     pub build_file: bool,
+
+    /// Verbose mode, enables verbose output
+    #[arg(long = "verbose")]
+    pub verbose: bool,
 }

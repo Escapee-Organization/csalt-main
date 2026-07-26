@@ -37,7 +37,7 @@
 ## Why C-Salt?
 C isn't a bad language. However, the tooling is tedious and old. C-Salt aims to solve this by providing a modern, Cargo-inspired build orchestrator. It operates on a compilation "unit", which allows for easy management of C projects at the start. However, it also doesn't force `Salt.toml` upon you if you don't want to use it, as C-Salt is a lightweight wrapper, not a replacement.
 
-**NOTE**: we use `.csalt/` as a cache for all of its tasks so far to keep your repo clean, but in the future, you will be able to adjust that, and this architecture will prove its usefulness.
+**NOTE**: we use `.csalt/` as a cache for all of its tasks so far to keep your repo clean, but in the future, you will be able to adjust that.
 
 ```toml
 # Salt.toml
@@ -48,17 +48,16 @@ authors = [""]
 description = ""
 
 [build]
-build_sys = "cmake"
-build_sys_ver = "3.15"
+build_sys = "cmake" # As of now, only cmake is supported
+build_sys_ver = "3.15" # As of now, only ^3.15 is supported, and no ranges
 build_dir = "build/"
 edition = "c11"
-compiler = "clang"
+compiler = "clang" # As of now, only gcc, clang, and zig are supported
 
 [[unit]]
 name = "example"
 kind = "bin"
-main = "src/main.c"
-src = ["src/"]
+src = ["src/"] # First file (or first file in folder) is implied to be the main file
 ```
 
 **NOTE**: C-Salt is a Minimum Viable Product (MVP) in this current stage. It is not ready for production use, will change heavily, has unfinished features, and is not battle-tested against every edge case, especially for cross-platform uses.
@@ -97,10 +96,10 @@ csalt --help
   - `--git`: Auto-initializes a Git repository.
   - `--full`: Populates placeholder directories for `vendor/` and `tests/` and `README.md`.
   - `--stealth`: **Stealth Mode.** Removes configuration files from tracking so you can secretly manage massive legacy codebases with C-Salt without disrupting your team. *Note: it is always wise to copy an existing C project into a new directory before using C-Salt.*
-- **`csalt compile`**: Executes C-Salt as a build system, calling the compiler and linker inside the cache (`.csalt/`), and enforcing a strict, safe compilation order. Supports `bin` (executable), `lib` (static archives), and `dyn` (shared dynamic libraries) out of the box.
+- **`csalt compile`**: Executes C-Salt as a build system, calling the compiler and linker inside the cache (`.csalt/`), and enforcing a strict, safe compilation order. Supports `bin`, `lib`, and `dyn` out of the box.
 - **`csalt build`**: Automatically acts as a communicator to a build system, such as CMake 3.15. It has two modes:
-  - **Fresh Mode**: Translates your linear `Salt.toml` structure seamlessly into native, readable `CMakeLists.txt` scripts for CMake 3.15, compiling the final workspace cleanly.
-  - **Managed Mode**: Detects if you already have a custom, manual `CMakeLists.txt` in your root, safely steps out of the way, and passes command execution downstream to trust your existing system rules.
+  - **Fresh Mode**: Translates your linear `Salt.toml` structure seamlessly into native, readable `CMakeLists.txt` scripts for CMake 3.15, compiling the workspace cleanly.
+  - **Managed Mode**: Detects if you already have a custom, manual `CMakeLists.txt` in your root, safely steps out of the way, and passes command execution downstream to trust your existing script.
 - **Raw Passthrough Escape Hatch**: Pass trailing variable arguments directly to your underlying backend (`csalt (compile/build) -- [args]`) to run raw commands. In other words, it's a macro for:
   - ```bash
     csalt emit
@@ -116,8 +115,9 @@ csalt --help
   - `bin` (binary, e.g. `main` or `main.exe`)
   - `lib` (static library, e.g. `libmath.a` or `math.lib`)
   - `dyn` (dynamic library, e.g. `libmath.dll` or `libmath.so`)
-  - `extlib` (pre-compiled static library, e.g. `libmath.a` or `math.lib`)
-  - `extdyn` (pre-compiled dynamic library, e.g. `libmath.dll` or `libmath.so`)
+  - `extlib` (pre-compiled static library path, e.g. `libmath.a` or `math.lib`)
+  - `extdyn` (pre-compiled dynamic library path, e.g. `libmath.dll` or `libmath.so`)
+  - `pkg` (package, usually managed by `pkg-config`)
   - **NOTE**: `extdyn` and `dyn` have caused the original creator many issues, especially late at night for cross-platform uses, so they may not be complete
 
 ## AI Usage Disclosure
