@@ -46,8 +46,7 @@ impl TryFrom<&str> for BuildMode {
 ///
 /// ### Examples
 /// ```
-/// use csalt::verify_command;
-/// verify_command("mkdir").unwrap();
+/// csalt::helpers::verify_command("mkdir").unwrap();
 /// ```
 pub fn verify_command(command_name: &str) -> anyhow::Result<()> {
     match std::process::Command::new(command_name).spawn() {
@@ -74,7 +73,7 @@ pub fn verify_command(command_name: &str) -> anyhow::Result<()> {
 ///
 /// ```
 /// let mut command = std::process::Command::new("zig");
-/// csalt::attach_zig_target_arg(csalt::config::CompilerBackend::Zig, &mut command, Some("x86_64-pc-windows-msvc".to_string()));
+/// csalt::helpers::attach_zig_target_arg(csalt::config::CompilerBackend::Zig, &mut command, Some("x86_64-pc-windows-msvc".to_string()));
 /// ```
 pub fn attach_zig_target_arg(
     compiler_backend: crate::config::CompilerBackend,
@@ -111,7 +110,7 @@ fn save_flag(flag: &str, compiler: &mut Vec<String>, linker: &mut Vec<String>) {
 /// let raw_stdout = "Compilation flags: -I/usr/include -L/usr/lib -l";
 /// let mut true_compiler_flags = Vec::new();
 /// let mut true_linker_flags = Vec::new();
-/// csalt::parse_flags_linear(raw_stdout, &mut true_compiler_flags, &mut true_linker_flags);
+/// csalt::helpers::parse_flags_linear(raw_stdout, &mut true_compiler_flags, &mut true_linker_flags);
 ///
 /// assert_eq!(true_compiler_flags, vec!["-I/usr/include"]);
 /// assert_eq!(true_linker_flags, vec!["-L/usr/lib", "-l"]);
