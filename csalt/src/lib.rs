@@ -431,7 +431,7 @@ pub fn build_manual_project(
     _mode: &Option<String>,
     run: bool,
     zig_target: &Option<String>,
-    debug: bool,
+    verbose_on: bool,
     backend_flags: &[String],
 ) -> anyhow::Result<()> {
     println!("[info] Compiling project...");
@@ -496,7 +496,6 @@ pub fn build_manual_project(
 
     verify_command(compiler_backend.to_string().as_str())?;
     let build_plan = prepare_build_plan(&lock, &base_dir)?;
-    let debug_on = debug;
 
     for unit in build_plan {
         if unit.kind == UnitKinds::ExtLib
@@ -614,9 +613,9 @@ pub fn build_manual_project(
                 }
             }
 
-            // --- DEBUG ---
-            if debug_on {
-                println!("[DEBUG compiler] {:?}", target_compiler);
+            // --- VERBOSE ---
+            if verbose_on {
+                println!("[cmd compiler] {:?}", target_compiler);
             }
 
             let status = target_compiler.current_dir(&cache_dir).status()?;
@@ -658,9 +657,9 @@ pub fn build_manual_project(
                 ar_command.arg(&object_path);
             }
 
-            // --- DEBUG --
-            if debug_on {
-                println!("[DEBUG archiver] {:?}", ar_command);
+            // --- VERBOSE ---
+            if verbose_on {
+                println!("[cmd archiver] {:?}", ar_command);
             }
 
             let ar_status = ar_command.current_dir(&cache_dir).status()?;
@@ -750,9 +749,9 @@ pub fn build_manual_project(
                 CompilerBackend::Msvc | CompilerBackend::ClangCl => {}
             }
 
-            // --- DEBUG --
-            if debug_on {
-                println!("[DEBUG linker] {:?}", link_command);
+            // --- VERBOSE --
+            if verbose_on {
+                println!("[cmd linker] {:?}", link_command);
             }
             let status = link_command.current_dir(&cache_dir).status()?;
             if !status.success() {

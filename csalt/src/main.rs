@@ -47,7 +47,7 @@ fn run_csalt() -> anyhow::Result<()> {
                 &salt_args.mode,
                 salt_args.run,
                 &salt_args.zig_target,
-                salt_args.debug,
+                salt_args.verbose,
                 &salt_args.backend_flags,
             )?;
             println!("[Success] Project compiled successfully");

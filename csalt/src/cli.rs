@@ -97,9 +97,9 @@ pub struct CompileArgs {
     #[arg(long = "zig-target", short = 'z')]
     pub zig_target: Option<String>,
 
-    /// Debug mode, enables debug output
-    #[arg(long = "debug")]
-    pub debug: bool,
+    /// Verbose mode, enables verbose output
+    #[arg(long = "verbose")]
+    pub verbose: bool,
 
     /// Trailing parameters forwarded completely intact to the backend compiler layer
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, action = ArgAction::Append)]
