@@ -291,8 +291,8 @@ pub fn build_manual_project(
         // If this unit was a Static Library, we must pack the resulting object files into a .a container
         if unit.kind == UnitKinds::Lib {
             println!(
-                "[info] Packing static archive for library unit: lib{}.a",
-                unit.name
+                "[info] Packing static archive for library unit: {}",
+                lib_name
             );
 
             let mut ar_command = match compiler_backend {
