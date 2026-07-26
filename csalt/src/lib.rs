@@ -3,7 +3,9 @@
 // Copyright (c) 2026 Escapee Organization
 
 use crate::config::{BuildSystems, CompilerBackend, SaltLock, SaltToml, UnitKinds};
-use crate::helpers::{BuildMode, PreparedUnit, prepare_build_plan, verify_command};
+use crate::helpers::{
+    BuildMode, PreparedUnit, linker::LinkerDriver, prepare_build_plan, verify_command,
+};
 use anyhow::Context;
 use std::fs;
 use std::io::Write;
@@ -355,81 +357,15 @@ pub fn build_manual_project(
                 object_path.set_extension(obj_ext);
                 link_command.arg(&object_path);
             }
-            match compiler_backend {
-                CompilerBackend::Clang | CompilerBackend::Gcc | CompilerBackend::Zig => {
-                    helpers::attach_zig_target_arg(
-                        compiler_backend.clone(),
-                        &mut link_command,
-                        zig_target.clone(),
-                    );
 
-                    if unit.kind == UnitKinds::Dyn {
-                        link_command
-                            .arg("-shared")
-                            .arg("-fPIC")
-                            .arg("-o")
-                            .arg(&out_dyn);
-                        if cfg!(target_os = "macos") {
-                            let install_name = format!("@rpath/{}", dyn_name);
-                            link_command
-                                .arg("-Xlinker")
-                                .arg("-install_name")
-                                .arg("-Xlinker")
-                                .arg(install_name);
-                        }
-                    } else {
-                        link_command.arg("-o").arg(&output_executable);
-
-                        if cfg!(target_os = "macos") {
-                            link_command
-                                .arg("-Xlinker")
-                                .arg("-rpath")
-                                .arg("-Xlinker")
-                                .arg("@executable_path");
-                        }
-                    }
-
-                    link_command.arg("-L.").args(unit.linker_flags);
-                    link_command.args(&unit.unpack_linker_flags);
-
-                    for (dep_name, dep_kind, dep_path) in &unit.resolved_deps {
-                        match dep_kind {
-                            UnitKinds::Lib | UnitKinds::Dyn => match compiler_backend {
-                                #[cfg(feature = "experimental")]
-                                CompilerBackend::Msvc | CompilerBackend::ClangCl => {
-                                    link_command.arg(format!("{}.{}", dep_name, dyn_ext));
-                                }
-                                _ => {
-                                    link_command.arg(format!("-l{}", dep_name));
-                                }
-                            },
-                            UnitKinds::ExtLib | UnitKinds::ExtDyn => {
-                                let Some(path) = dep_path else {
-                                    anyhow::bail!(
-                                        "Missing pre-resolved path for external dependency: {}",
-                                        dep_name
-                                    );
-                                };
-
-                                let clean_path = path.canonicalize()?;
-                                link_command.arg(&clean_path);
-
-                                if unit.kind == UnitKinds::ExtDyn && cfg!(target_os = "macos") {
-                                    link_command
-                                        .arg("-Xlinker")
-                                        .arg("-rpath")
-                                        .arg("-Xlinker")
-                                        .arg("@executable_path")
-                                        .arg(path);
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-                #[cfg(feature = "experimental")]
-                CompilerBackend::Msvc | CompilerBackend::ClangCl => {}
-            }
+            let linker_driver = LinkerDriver::new(&compiler_backend, zig_target.clone());
+            linker_driver.build_flags(
+                &mut link_command,
+                &unit,
+                &out_dyn,
+                &dyn_name,
+                &output_executable,
+            )?;
 
             // --- VERBOSE --
             if verbose_on {
