@@ -386,13 +386,9 @@ pub fn prepare_build_plan(lock: &SaltLock, base_dir: &Path) -> anyhow::Result<Ve
             }
 
             if *kind == UnitKinds::Pkg {
-                if known_packages.contains_key(dep) {
-                    let (compiler_flags, linker_flags) = known_packages
-                        .get(dep)
-                        .ok_or(anyhow::anyhow!("Unknown package: {}", dep))?;
+                if let Some((compiler_flags, linker_flags)) = known_packages.get(dep) {
                     new_compiler_flags.extend(compiler_flags.clone());
                     new_linker_flags.extend(linker_flags.clone());
-                    continue;
                 }
                 if verify_command("pkg-config").is_ok() {
                     call_and_record_pkg_config(
