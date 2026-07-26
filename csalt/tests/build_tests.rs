@@ -4,8 +4,7 @@ use tempfile::tempdir;
 
 use csalt::{build_managed_project, build_manual_project};
 
-// TODO: We have such a beautiful bit of code here, why aren't we using it in the main project? Idiocy?
-/// Copies a directory and its contents from source to destination via a stack.
+// TODO: Move to use nice function in fs_utils, `walk_and_filter_dirs()` later
 fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> anyhow::Result<()> {
     fs::create_dir_all(&dst)?;
 
