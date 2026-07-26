@@ -11,6 +11,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// **Unused** - Creates the cache directory if it does not exist.
 pub fn ensure_cache_dir() -> anyhow::Result<PathBuf> {
     let home = home_dir().ok_or(anyhow::anyhow!("Home directory not found"))?;
     let cache_dir = home.join(".csalt");
@@ -19,6 +20,20 @@ pub fn ensure_cache_dir() -> anyhow::Result<PathBuf> {
     Ok(cache_dir)
 }
 
+/// Verifies that the given directory is a valid C-Salt project workspace.
+/// Checks if the directory contains a `Salt.toml` file.
+///
+/// ### Examples
+///
+/// ```
+/// use csalt::fs_utils::verify_workspace;
+///
+/// let temp_dir = tempfile::tempdir().unwrap();
+/// std::fs::write(&temp_dir.path().join("Salt.toml"), "foo").unwrap();
+/// let result = verify_workspace(&temp_dir.path());
+///
+/// assert!(result.is_ok());
+/// ```
 pub fn verify_workspace(base_dir: &Path) -> anyhow::Result<()> {
     let manifest_path = base_dir.join("Salt.toml");
     if !manifest_path.exists() {
@@ -175,7 +190,18 @@ pub fn copy_project_files(
 }
 
 /// Initializes the Salt.toml file in the project directory.
-fn init_salt_toml(project_name: &str, dir: &Path) -> anyhow::Result<()> {
+///
+/// ### Examples
+///
+/// ```
+/// use csalt::fs_utils::init_salt_toml;
+///
+/// let temp_dir = tempfile::tempdir().unwrap();
+/// init_salt_toml("my_project", &temp_dir.path()).unwrap();
+///
+/// assert!(temp_dir.path().join("Salt.toml").exists());
+/// ```
+pub fn init_salt_toml(project_name: &str, dir: &Path) -> anyhow::Result<()> {
     let toml_content = SaltToml {
         package: config::PackageSection {
             name: project_name.to_string(),
@@ -218,7 +244,24 @@ fn init_salt_toml(project_name: &str, dir: &Path) -> anyhow::Result<()> {
 ///
 /// Creates only `src/`, `include/`, `build/`, and `.csalt/` directories by default
 /// with optional `tests/` and `vendor/` directories and a `README.md` file.
-fn init_all_directories(full: bool, project_name: &str, dir: &Path) -> anyhow::Result<()> {
+///
+/// ### Examples
+///
+/// ```
+/// use csalt::fs_utils::init_all_directories;
+///
+/// let temp_dir = tempfile::tempdir().unwrap();
+/// init_all_directories(true, "my_project", &temp_dir.path()).unwrap();
+///
+/// assert!(temp_dir.path().join("src").exists());
+/// assert!(temp_dir.path().join("include").exists());
+/// assert!(temp_dir.path().join("build").exists());
+/// assert!(temp_dir.path().join(".csalt").exists());
+/// assert!(temp_dir.path().join("tests").exists());
+/// assert!(temp_dir.path().join("vendor").exists());
+/// assert!(temp_dir.path().join("README.md").exists());
+/// ```
+pub fn init_all_directories(full: bool, project_name: &str, dir: &Path) -> anyhow::Result<()> {
     fs::create_dir_all(dir.join("src"))?;
     fs::create_dir_all(dir.join("include"))?;
     fs::create_dir_all(dir.join("build"))?;
@@ -249,7 +292,20 @@ fn init_all_directories(full: bool, project_name: &str, dir: &Path) -> anyhow::R
 ///     return 0;
 /// }
 /// ```
-fn init_and_write_main_c(dir: &Path) -> anyhow::Result<()> {
+///
+/// ### Examples
+///
+/// ```
+/// use csalt::fs_utils::init_and_write_main_c;
+///
+/// let temp_dir = tempfile::tempdir().unwrap();
+/// std::fs::create_dir_all(temp_dir.path().join("src")).unwrap();
+/// init_and_write_main_c(&temp_dir.path()).unwrap();
+///
+/// assert!(temp_dir.path().join("src").join("main.c").exists());
+/// assert!(std::fs::read_to_string(temp_dir.path().join("src").join("main.c")).unwrap().contains("int main() {"));
+/// ```
+pub fn init_and_write_main_c(dir: &Path) -> anyhow::Result<()> {
     if fs::read_dir(dir.join("src"))?.next().is_none() {
         match OpenOptions::new()
             .write(true)
