@@ -107,7 +107,6 @@ pub fn build_manual_project(
     let current_toml: SaltToml = toml::from_str(&salt_toml_str)?;
 
     let lock = fs_utils::load_or_init_lock(&current_toml)?;
-    // TODO: Consider a more professional output directory
     let out_bin_dir = base_dir.join(match &lock.manifest.build.build_dir {
         Some(dir) => dir,
         None => Path::new("build"),
