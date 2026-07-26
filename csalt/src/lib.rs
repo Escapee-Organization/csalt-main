@@ -11,8 +11,6 @@ use std::path::{Path, PathBuf};
 
 #[cfg(feature = "experimental")]
 use std::sync::LockResult;
-#[cfg(feature = "experimental")]
-use toml;
 
 pub mod cli;
 pub mod config;
