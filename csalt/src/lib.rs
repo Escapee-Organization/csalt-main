@@ -59,7 +59,14 @@ impl TryFrom<&str> for BuildMode {
 
 // -------------------- FUNCTIONS --------------------
 
-fn verify_command(command_name: &str) -> anyhow::Result<()> {
+/// Verifies that the given command is available on the system.
+///
+/// ### Examples
+/// ```
+/// use csalt::verify_command;
+/// verify_command("mkdir").unwrap();
+/// ```
+pub fn verify_command(command_name: &str) -> anyhow::Result<()> {
     match Command::new(command_name).spawn() {
         Ok(mut child) => {
             // Kill the child! Kill the child!
