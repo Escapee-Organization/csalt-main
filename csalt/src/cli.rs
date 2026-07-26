@@ -124,6 +124,10 @@ pub struct BuildArgs {
     #[arg(long = "zig-target", short = 'z')]
     pub zig_target: Option<String>,
 
+    /// Verbose mode, enables verbose output
+    #[arg(long = "verbose")]
+    pub verbose: bool,
+
     /// Trailing parameters forwarded completely intact to the backend compiler layer
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, action = ArgAction::Append)]
     pub backend_flags: Vec<String>,

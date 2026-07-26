@@ -787,6 +787,7 @@ pub fn build_managed_project(
     mode: &Option<String>,
     backend_flags: &Vec<String>,
     zig_target: &Option<String>,
+    verbose: bool,
 ) -> anyhow::Result<()> {
     println!("[info] Building project...");
 
@@ -829,6 +830,12 @@ pub fn build_managed_project(
         emit_project(&base_dir, &cache_dir, build_dir, Some(plan))?;
         let mut target_build = backend.generate_command();
         target_build.args(backend_flags).current_dir(&base_dir);
+
+        // --- VERBOSE ---
+        if verbose {
+            println!("[cmd build] {:?}", target_build);
+        }
+
         let status = target_build.status()?;
         if !status.success() {
             anyhow::bail!("Failed to build project");

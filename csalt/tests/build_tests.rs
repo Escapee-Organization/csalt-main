@@ -47,6 +47,7 @@ fn test_default_project_cmake_generation() -> anyhow::Result<()> {
         &None,
         &Vec::new(),
         &None,
+        true,
     )?;
 
     let expected_cmake_path = cache_dir.join("CMakeLists.txt");
