@@ -70,7 +70,7 @@ fn run_csalt() -> anyhow::Result<()> {
             );
             std::fs::create_dir_all(&build_dir)?;
             let build_dir = build_dir.canonicalize()?;
-            let plan = csalt::prepare_build_plan(&lock, &base_dir)?;
+            let plan = csalt::helpers::prepare_build_plan(&lock, &base_dir)?;
             emit_project(
                 &base_dir,
                 &cache_dir,

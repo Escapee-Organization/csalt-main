@@ -151,7 +151,7 @@ impl CompilerBackend {
             Self::ClangCl,
         ];
         for compiler in search_compiler_order {
-            if crate::verify_command(compiler.to_string().as_str()).is_ok() {
+            if crate::helpers::verify_command(compiler.to_string().as_str()).is_ok() {
                 return Ok(compiler);
             }
         }

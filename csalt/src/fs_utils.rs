@@ -2,9 +2,9 @@
 // If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org.
 // Copyright (c) 2026 Escapee Organization
 
-use crate::LOCK_VERSION;
 use crate::config::{self, SaltLock, SaltToml};
-use crate::verify_command;
+use crate::helpers::LOCK_VERSION;
+use crate::helpers::verify_command;
 use dirs::home_dir;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
