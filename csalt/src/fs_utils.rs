@@ -251,22 +251,24 @@ pub fn init_salt_toml(project_name: &str, dir: &Path) -> anyhow::Result<()> {
 /// use csalt::fs_utils::init_all_directories;
 ///
 /// let temp_dir = tempfile::tempdir().unwrap();
-/// init_all_directories(true, "my_project", &temp_dir.path()).unwrap();
+/// init_all_directories(None, "my_project", &temp_dir.path()).unwrap();
 ///
 /// assert!(temp_dir.path().join("src").exists());
 /// assert!(temp_dir.path().join("include").exists());
 /// assert!(temp_dir.path().join("build").exists());
 /// assert!(temp_dir.path().join(".csalt").exists());
-/// assert!(temp_dir.path().join("tests").exists());
-/// assert!(temp_dir.path().join("vendor").exists());
-/// assert!(temp_dir.path().join("README.md").exists());
 /// ```
-pub fn init_all_directories(full: bool, project_name: &str, dir: &Path) -> anyhow::Result<()> {
+pub fn init_all_directories(
+    template: Option<&str>,
+    project_name: &str,
+    dir: &Path,
+) -> anyhow::Result<()> {
     fs::create_dir_all(dir.join("src"))?;
     fs::create_dir_all(dir.join("include"))?;
     fs::create_dir_all(dir.join("build"))?;
     fs::create_dir_all(dir.join(".csalt"))?;
-    if full {
+    let out_template = template.unwrap_or_default();
+    if out_template == "old-full" {
         fs::create_dir_all(dir.join("tests"))?;
         fs::create_dir_all(dir.join("vendor"))?;
         if let Ok(false) = fs::exists(dir.join("README.md")) {
@@ -361,19 +363,30 @@ pub fn load_or_init_lock(current_toml: &SaltToml) -> anyhow::Result<SaltLock> {
 ///
 /// * `name` - The name of the project.
 /// * `dir` - The directory to create the project in.
-/// * `full` - Whether to create a full project (see [`init_all_directories`])
+/// * `template` - Whether to follow a specific workspace layout for a specific goal
 /// * `stealth` - Whether to add configuration files to `.gitignore`.
 /// * `init_git` - Whether to initialize Git.
+///
+/// ### Examples
+/// ```
+/// let binding = tempfile::tempdir().unwrap();
+/// let test_root = binding.path();
+/// csalt::fs_utils::new_project("test", Some(&test_root.to_string_lossy()), None, false, false);
+///
+/// let cache_dir = test_root.join("test").join(".csalt");
+///
+/// assert!(std::fs::exists(cache_dir).unwrap(), "Cache directory does not exist");
+/// ```
 pub fn new_project(
     name: &str,
     dir: Option<&str>,
-    full: bool,
+    template: Option<&str>,
     stealth: bool,
     init_git: bool,
 ) -> anyhow::Result<()> {
     let path = Path::new(&dir.unwrap_or(".")).join(name);
     fs::create_dir_all(&path)?;
-    init_project(&path, full, stealth, init_git)?;
+    init_project(&path, template, stealth, init_git)?;
 
     Ok(())
 }
@@ -386,7 +399,12 @@ pub fn new_project(
 /// * `full` - Whether to create a full project (see [`init_all_directories`])
 /// * `stealth` - Whether to add configuration files to `.gitignore`.
 /// * `init_git` - Whether to initialize Git.
-pub fn init_project(dir: &Path, full: bool, stealth: bool, init_git: bool) -> anyhow::Result<()> {
+pub fn init_project(
+    dir: &Path,
+    template: Option<&str>,
+    stealth: bool,
+    init_git: bool,
+) -> anyhow::Result<()> {
     fs::create_dir_all(dir)?;
 
     let project_name = dir
@@ -413,7 +431,7 @@ pub fn init_project(dir: &Path, full: bool, stealth: bool, init_git: bool) -> an
         }
     }
 
-    init_all_directories(full, project_name, dir)?;
+    init_all_directories(template, project_name, dir)?;
 
     init_and_write_main_c(dir)?;
 

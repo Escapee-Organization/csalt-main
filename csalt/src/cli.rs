@@ -66,9 +66,9 @@ pub struct NewArgs {
     #[arg(short = 'd', long = "dir")]
     pub dir: Option<String>,
 
-    /// Full project initialization, such as adding `vendor/` and `tests/`
-    #[arg(short = 'f', long = "full")]
-    pub full: bool,
+    /// Arranges workspace to fit specific goals
+    #[arg(short = 't', long = "template")]
+    pub template: Option<String>,
 
     /// Stealth mode, suppresses output messages
     #[arg(long = "stealth")]
