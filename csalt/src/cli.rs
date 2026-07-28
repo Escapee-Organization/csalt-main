@@ -102,7 +102,7 @@ pub struct CompileArgs {
     pub zig_target: Option<String>,
 
     /// Verbose mode, enables verbose output
-    #[arg(long = "verbose")]
+    #[arg(long = "verbose", short = 'V')]
     pub verbose: bool,
 
     /// Trailing parameters forwarded completely intact to the backend compiler layer
@@ -129,7 +129,7 @@ pub struct BuildArgs {
     pub zig_target: Option<String>,
 
     /// Verbose mode, enables verbose output
-    #[arg(long = "verbose")]
+    #[arg(long = "verbose", short = 'V')]
     pub verbose: bool,
 
     /// Trailing parameters forwarded completely intact to the backend compiler layer
@@ -149,6 +149,6 @@ pub struct EmitArgs {
     pub build_file: bool,
 
     /// Verbose mode, enables verbose output
-    #[arg(long = "verbose")]
+    #[arg(long = "verbose", short = 'V')]
     pub verbose: bool,
 }
