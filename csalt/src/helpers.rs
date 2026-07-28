@@ -323,8 +323,7 @@ pub fn prepare_build_plan(
                 if let Some((compiler_flags, linker_flags)) = known_packages.get(dep) {
                     new_compiler_flags.extend(compiler_flags.clone());
                     new_linker_flags.extend(linker_flags.clone());
-                }
-                if verify_command("pkg-config").is_ok() {
+                } else if verify_command("pkg-config").is_ok() {
                     call_and_record_pkg_config(
                         dep,
                         &mut new_compiler_flags,
