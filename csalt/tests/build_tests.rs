@@ -35,7 +35,7 @@ fn test_default_project_cmake_generation() -> anyhow::Result<()> {
 
     let example_src = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("examples")
-        .join("default-new-project");
+        .join("bin");
     if example_src.exists() {
         copy_dir_all(&example_src, test_root)?;
     } else {
@@ -68,7 +68,7 @@ fn test_default_project_self_build_system() -> anyhow::Result<()> {
 
     let example_src = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("examples")
-        .join("default-new-project");
+        .join("bin");
     if example_src.exists() {
         copy_dir_all(&example_src, test_root)?;
     } else {

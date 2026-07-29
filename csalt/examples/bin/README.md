@@ -1,8 +1,9 @@
-# `default-new-project` Example
+# `bin` Example
 
 This example demonstrates:
 1. C-Salt's capability at defining and building a C project via `Salt.toml`
 2. The difference between `csalt compile` and `csalt build`
+3. The default new C-Salt project, run with `csalt new <name>` or `csalt new <name> --template=bin`
 
 ## Prerequisites
 
