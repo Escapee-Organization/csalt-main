@@ -42,6 +42,25 @@ fn test_default_project_cmake_generation() -> anyhow::Result<()> {
         anyhow::bail!("example source directory does not exist");
     }
 
+    let toml_content = r#"[package]
+name = "bin"
+version = "0.1.0"
+authors = [""]
+description = ""
+
+[build]
+build_sys = "cmake"
+build_sys_ver = "3.15"
+compiler = "clang"
+edition = "c11"
+
+[[unit]]
+name = "bin"
+kind = "bin"
+src = ["src/"]"#;
+
+    fs::write(test_root.join("Salt.toml"), toml_content)?;
+
     build_managed_project(
         &None,
         &Some(PathBuf::from(test_root)),
