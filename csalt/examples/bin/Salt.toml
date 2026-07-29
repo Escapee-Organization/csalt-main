@@ -1,13 +1,13 @@
 [package]
-name = "simple"
+name = "bin"
 version = "0.1.0"
-authors = ["foo"]
-description = "bar"
+authors = [""]
+description = ""
 
 [build]
 edition = "c11"
 
 [[unit]]
-name = "simple"
+name = "bin"
 kind = "bin"
 src = ["src/"]
