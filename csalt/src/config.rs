@@ -252,7 +252,6 @@ impl SaltToml {
          * Also ensure any deps are declared before their use
          */
 
-        let mut seen_bin = false;
         let mut declared_libs: collections::HashSet<String> = collections::HashSet::new();
 
         for target in &self.unit {
@@ -276,19 +275,9 @@ impl SaltToml {
                 | UnitKinds::ExtLib
                 | UnitKinds::ExtDyn
                 | UnitKinds::Pkg => {
-                    if seen_bin {
-                        anyhow::bail!(
-                            "The {:?} unit '{}' must come before Bin targets",
-                            target.kind,
-                            target.name
-                        );
-                    }
-
                     declared_libs.insert(target.name.trim().to_string());
                 }
-                UnitKinds::Bin => {
-                    seen_bin = true;
-                }
+                UnitKinds::Bin => {}
             }
 
             if let Some(deps) = &target.deps {
