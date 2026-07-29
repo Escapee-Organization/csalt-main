@@ -2,7 +2,7 @@
 // If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org.
 // Copyright (c) 2026 Escapee Organization
 
-use crate::config::{self, SaltLock, SaltToml};
+use crate::config::{SaltLock, SaltToml};
 use crate::helpers::LOCK_VERSION;
 use crate::helpers::verify_command;
 use dirs::home_dir;
@@ -11,7 +11,32 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// **Unused** - Creates the cache directory if it does not exist.
+// ------------------- DATA -------------------
+
+pub struct TemplateFile {
+    pub virtual_path: PathBuf,
+    pub content: &'static str,
+}
+
+// ----------------- FUNCTIONS -----------------
+
+pub fn lookup_template(template_name: &str) -> anyhow::Result<Vec<TemplateFile>> {
+    match template_name {
+        "bin" => Ok(vec![
+            TemplateFile {
+                virtual_path: PathBuf::from("src/main.c"),
+                content: include_str!("../examples/bin/src/main.c"),
+            },
+            TemplateFile {
+                virtual_path: PathBuf::from("Salt.toml"),
+                content: include_str!("../examples/bin/Salt.toml"),
+            },
+        ]),
+        invalid_str => Err(anyhow::anyhow!("could not find template '{}'", invalid_str)),
+    }
+}
+
+/// **Unused directory** - Creates the cache directory if it does not exist.
 pub fn ensure_cache_dir() -> anyhow::Result<PathBuf> {
     let home = home_dir().ok_or(anyhow::anyhow!("Home directory not found"))?;
     let cache_dir = home.join(".csalt");
@@ -194,31 +219,31 @@ pub fn copy_project_files(
 /// ### Examples
 ///
 /// ```
-/// use csalt::fs_utils::init_salt_toml;
+/// use csalt::fs_utils::init_default_salt_toml;
 ///
 /// let temp_dir = tempfile::tempdir().unwrap();
-/// init_salt_toml("my_project", &temp_dir.path()).unwrap();
+/// init_default_salt_toml("my_project", &temp_dir.path()).unwrap();
 ///
 /// assert!(temp_dir.path().join("Salt.toml").exists());
 /// ```
-pub fn init_salt_toml(project_name: &str, dir: &Path) -> anyhow::Result<()> {
+pub fn init_default_salt_toml(project_name: &str, dir: &Path) -> anyhow::Result<()> {
     let toml_content = SaltToml {
-        package: config::PackageSection {
+        package: crate::config::PackageSection {
             name: project_name.to_string(),
             version: "0.1.0".to_string(),
             authors: vec!["".to_string()],
             description: "".to_string(),
         },
-        build: config::BuildSection {
+        build: crate::config::BuildSection {
             build_sys: None,
             build_sys_ver: None,
             build_dir: Some(PathBuf::from("build/")),
-            edition: config::CEditions::C11,
-            compiler: Some(config::CompilerBackend::Clang),
+            edition: crate::config::CEditions::C11,
+            compiler: Some(crate::config::CompilerBackend::Clang),
         },
-        unit: vec![config::UnitVector {
+        unit: vec![crate::config::UnitVector {
             name: project_name.to_string(),
-            kind: config::UnitKinds::Bin,
+            kind: crate::config::UnitKinds::Bin,
             src: vec![PathBuf::from("src/")],
             include: Some(vec![PathBuf::from("include/")]),
             deps: None,
@@ -235,98 +260,6 @@ pub fn init_salt_toml(project_name: &str, dir: &Path) -> anyhow::Result<()> {
     } else {
         toml_content.validate(dir)?;
         println!("Salt.toml already exists, skipping creation.");
-    }
-
-    Ok(())
-}
-
-/// Initializes all directories for the project.
-///
-/// Creates only `src/`, `include/`, `build/`, and `.csalt/` directories by default
-/// with optional `tests/` and `vendor/` directories and a `README.md` file.
-///
-/// ### Examples
-///
-/// ```
-/// use csalt::fs_utils::init_all_directories;
-///
-/// let temp_dir = tempfile::tempdir().unwrap();
-/// init_all_directories(None, "my_project", &temp_dir.path()).unwrap();
-///
-/// assert!(temp_dir.path().join("src").exists());
-/// assert!(temp_dir.path().join("include").exists());
-/// assert!(temp_dir.path().join("build").exists());
-/// assert!(temp_dir.path().join(".csalt").exists());
-/// ```
-pub fn init_all_directories(
-    template: Option<&str>,
-    project_name: &str,
-    dir: &Path,
-) -> anyhow::Result<()> {
-    fs::create_dir_all(dir.join("src"))?;
-    fs::create_dir_all(dir.join("include"))?;
-    fs::create_dir_all(dir.join("build"))?;
-    fs::create_dir_all(dir.join(".csalt"))?;
-    let out_template = template.unwrap_or_default();
-    if out_template == "old-full" {
-        fs::create_dir_all(dir.join("tests"))?;
-        fs::create_dir_all(dir.join("vendor"))?;
-        if let Ok(false) = fs::exists(dir.join("README.md")) {
-            let mut read_me = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(dir.join("README.md"))?;
-            writeln!(read_me, "# {}\n", project_name)?;
-        }
-    }
-
-    Ok(())
-}
-
-/// Writes the `main.c` file to the `src/` directory **if** it doesn't exist.
-///
-/// `main.c`:
-/// ```c
-/// #include <stdio.h>
-///
-/// int main() {
-///     printf("Hello, World!\n");
-///     return 0;
-/// }
-/// ```
-///
-/// ### Examples
-///
-/// ```
-/// use csalt::fs_utils::init_and_write_main_c;
-///
-/// let temp_dir = tempfile::tempdir().unwrap();
-/// std::fs::create_dir_all(temp_dir.path().join("src")).unwrap();
-/// init_and_write_main_c(&temp_dir.path()).unwrap();
-///
-/// assert!(temp_dir.path().join("src").join("main.c").exists());
-/// assert!(std::fs::read_to_string(temp_dir.path().join("src").join("main.c")).unwrap().contains("int main() {"));
-/// ```
-pub fn init_and_write_main_c(dir: &Path) -> anyhow::Result<()> {
-    if fs::read_dir(dir.join("src"))?.next().is_none() {
-        match OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(dir.join("src").join("main.c"))
-        {
-            Ok(mut main_file) => {
-                writeln!(main_file, "#include <stdio.h>")?;
-                writeln!(main_file)?;
-                writeln!(main_file, "int main() {{")?;
-                writeln!(main_file, "    printf(\"Hello, World!\\n\");")?;
-                writeln!(main_file, "    return 0;")?;
-                writeln!(main_file, "}}")?;
-            }
-            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {}
-            Err(e) => {
-                anyhow::bail!("Failed to write main.c: {}", e);
-            }
-        }
     }
 
     Ok(())
@@ -357,63 +290,26 @@ pub fn load_or_init_lock(current_toml: &SaltToml) -> anyhow::Result<SaltLock> {
     Ok(lock)
 }
 
-/// Creates a new project in the current directory or the specified directory.
-///
-/// # Arguments
-///
-/// * `name` - The name of the project.
-/// * `dir` - The directory to create the project in.
-/// * `template` - Whether to follow a specific workspace layout for a specific goal
-/// * `stealth` - Whether to add configuration files to `.gitignore`.
-/// * `init_git` - Whether to initialize Git.
-///
-/// ### Examples
-/// ```
-/// let binding = tempfile::tempdir().unwrap();
-/// let test_root = binding.path();
-/// csalt::fs_utils::new_project("test", Some(&test_root.to_string_lossy()), None, false, false);
-///
-/// let cache_dir = test_root.join("test").join(".csalt");
-///
-/// assert!(std::fs::exists(cache_dir).unwrap(), "Cache directory does not exist");
-/// ```
-pub fn new_project(
-    name: &str,
-    dir: Option<&str>,
-    template: Option<&str>,
-    stealth: bool,
-    init_git: bool,
-) -> anyhow::Result<()> {
-    let path = Path::new(&dir.unwrap_or(".")).join(name);
-    fs::create_dir_all(&path)?;
-    init_project(&path, template, stealth, init_git)?;
+pub fn init_default_gitignore(dir: &Path, stealth: bool) -> anyhow::Result<()> {
+    let gitignore_path = dir.join(".gitignore");
+    if fs::exists(&gitignore_path).is_err() {
+        let mut gitignore = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&gitignore_path)?;
+        writeln!(gitignore, "build/")?;
+        writeln!(gitignore, ".csalt/")?;
+
+        if stealth {
+            writeln!(gitignore, "Salt.toml")?;
+            writeln!(gitignore, "Salt.lock")?;
+        }
+    }
 
     Ok(())
 }
 
-/// Initializes a project in the specified directory.
-///
-/// # Arguments
-///
-/// * `dir` - The directory to initialize the project in.
-/// * `full` - Whether to create a full project (see [`init_all_directories`])
-/// * `stealth` - Whether to add configuration files to `.gitignore`.
-/// * `init_git` - Whether to initialize Git.
-pub fn init_project(
-    dir: &Path,
-    template: Option<&str>,
-    stealth: bool,
-    init_git: bool,
-) -> anyhow::Result<()> {
-    fs::create_dir_all(dir)?;
-
-    let project_name = dir
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("project");
-
-    init_salt_toml(project_name, dir)?;
-
+pub fn init_empty_salt_lock(dir: &Path) -> anyhow::Result<()> {
     if !dir.join("Salt.lock").exists() {
         match OpenOptions::new()
             .write(true)
@@ -431,25 +327,10 @@ pub fn init_project(
         }
     }
 
-    init_all_directories(template, project_name, dir)?;
+    Ok(())
+}
 
-    init_and_write_main_c(dir)?;
-
-    let gitignore_path = dir.join(".gitignore");
-    if fs::exists(&gitignore_path).is_err() {
-        let mut gitignore = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&gitignore_path)?;
-        writeln!(gitignore, "build/")?;
-        writeln!(gitignore, ".csalt/")?;
-
-        if stealth {
-            writeln!(gitignore, "Salt.toml")?;
-            writeln!(gitignore, "Salt.lock")?;
-        }
-    }
-
+pub fn init_git_version_control(init_git: bool, dir: &Path) -> anyhow::Result<()> {
     if init_git {
         verify_command("git")?;
         Command::new("git")
@@ -458,6 +339,71 @@ pub fn init_project(
             .status()
             .ok();
     }
+
+    Ok(())
+}
+
+/// Creates a new project in the current directory or the specified directory.
+///
+/// # Arguments
+///
+/// * `name` - The name of the project.
+/// * `dir` - The directory to create the project in.
+/// * `template` - Whether to follow a specific workspace layout for a specific goal
+/// * `stealth` - Whether to add configuration files to `.gitignore`.
+/// * `init_git` - Whether to initialize Git.
+///
+/// ### Examples
+/// ```
+/// ```
+pub fn new_project(
+    name: &str,
+    dir: Option<&str>,
+    template: &str,
+    stealth: bool,
+    init_git: bool,
+) -> anyhow::Result<()> {
+    let path = Path::new(&dir.unwrap_or(".")).join(name);
+    fs::create_dir_all(&path)?;
+
+    let template_files = lookup_template(template)?;
+
+    for file in template_files {
+        let file_path = path.join(file.virtual_path);
+
+        if let Some(parent) = file_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        fs::write(file_path, file.content)?;
+    }
+
+    init_empty_salt_lock(path.as_path())?;
+    init_default_gitignore(path.as_path(), stealth)?;
+    init_git_version_control(init_git, path.as_path())?;
+
+    Ok(())
+}
+
+/// Initializes a project in the specified directory.
+///
+/// # Arguments
+///
+/// * `dir` - The directory to initialize the project in.
+/// * `stealth` - Whether to add configuration files to `.gitignore`.
+/// * `init_git` - Whether to initialize Git.
+pub fn init_project(dir: &Path, stealth: bool, init_git: bool) -> anyhow::Result<()> {
+    fs::create_dir_all(dir)?;
+
+    let project_name = dir
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("project");
+
+    init_default_salt_toml(project_name, dir)?;
+    init_empty_salt_lock(dir)?;
+    init_default_gitignore(dir, stealth)?;
+    init_git_version_control(init_git, dir)?;
 
     Ok(())
 }

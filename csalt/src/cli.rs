@@ -67,8 +67,8 @@ pub struct NewArgs {
     pub dir: Option<String>,
 
     /// Arranges workspace to fit specific goals
-    #[arg(short = 't', long = "template")]
-    pub template: Option<String>,
+    #[arg(short = 't', long = "template", default_value = "bin")]
+    pub template: String,
 
     /// Stealth mode, suppresses output messages
     #[arg(long = "stealth")]
