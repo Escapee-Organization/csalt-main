@@ -20,6 +20,21 @@ pub struct TemplateFile {
 
 // ----------------- FUNCTIONS -----------------
 
+fn overwrite_salt_toml_with_project_name(
+    salt_toml_path: &Path,
+    salt_toml_name: &str,
+) -> anyhow::Result<()> {
+    let salt_toml_str = fs::read_to_string(salt_toml_path)?;
+    let mut salt_toml: SaltToml = toml::from_str(salt_toml_str.as_str())?;
+
+    salt_toml.package.name = salt_toml_name.to_string();
+
+    let new_toml_str = toml::to_string_pretty(&salt_toml)?;
+    fs::write(salt_toml_path, new_toml_str)?;
+
+    Ok(())
+}
+
 pub fn lookup_template(template_name: &str) -> anyhow::Result<Vec<TemplateFile>> {
     match template_name {
         "bin" => Ok(vec![
@@ -381,6 +396,7 @@ pub fn new_project(
     init_empty_salt_lock(path.as_path())?;
     init_default_gitignore(path.as_path(), stealth)?;
     init_git_version_control(init_git, path.as_path())?;
+    overwrite_salt_toml_with_project_name(path.join("Salt.toml").as_path(), name)?;
 
     Ok(())
 }
