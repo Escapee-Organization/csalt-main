@@ -47,6 +47,20 @@ pub fn lookup_template(template_name: &str) -> anyhow::Result<Vec<TemplateFile>>
                 content: include_str!("../examples/bin/Salt.toml"),
             },
         ]),
+        "lib" => Ok(vec![
+            TemplateFile {
+                virtual_path: PathBuf::from("src/lib.c"),
+                content: include_str!("../examples/lib/src/lib.c"),
+            },
+            TemplateFile {
+                virtual_path: PathBuf::from("Salt.toml"),
+                content: include_str!("../examples/lib/Salt.toml"),
+            },
+            TemplateFile {
+                virtual_path: PathBuf::from("include/lib.h"),
+                content: include_str!("../examples/lib/include/lib.h"),
+            },
+        ]),
         invalid_str => Err(anyhow::anyhow!("could not find template '{}'", invalid_str)),
     }
 }
