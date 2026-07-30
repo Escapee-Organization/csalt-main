@@ -28,6 +28,51 @@ fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> anyhow::Result<
 }
 
 #[test]
+fn test_all_example_projects_csalt_compile() -> anyhow::Result<()> {
+    let examples_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples");
+
+    for entry in fs::read_dir(examples_dir)? {
+        let entry = entry?;
+        let source_path = entry.path();
+
+        if source_path.is_file() {
+            continue;
+        }
+
+        // NOTE: Find an easy way to modify any field of `SaltToml` without so much boilerplate
+        if source_path.as_os_str() == "zlib-ver" {
+            continue;
+        }
+
+        let temp_dir = tempdir()?;
+        let test_root = temp_dir.path();
+
+        copy_dir_all(entry.path(), test_root)?;
+
+        build_manual_project(
+            &None,
+            &Some(PathBuf::from(test_root)),
+            &None,
+            false,
+            &None,
+            true,
+            &Vec::new(),
+        )?;
+
+        assert!(
+            test_root.join(".csalt").exists(),
+            "cache directory was not created!"
+        );
+        assert!(
+            test_root.join("build").exists(),
+            "build directory was not created!"
+        );
+    }
+
+    Ok(())
+}
+
+#[test]
 fn test_default_project_cmake_generation() -> anyhow::Result<()> {
     let temp_dir = tempdir()?;
     let test_root = temp_dir.path();
@@ -80,36 +125,6 @@ src = ["src/"]"#;
 }
 
 #[test]
-fn test_default_project_self_build_system() -> anyhow::Result<()> {
-    let temp_dir = tempdir()?;
-    let test_root = temp_dir.path();
-    let cache_dir = test_root.join(".csalt");
-
-    let example_src = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("examples")
-        .join("bin");
-    if example_src.exists() {
-        copy_dir_all(&example_src, test_root)?;
-    } else {
-        anyhow::bail!("example source directory does not exist");
-    }
-
-    build_manual_project(
-        &None,
-        &Some(PathBuf::from(test_root)),
-        &None,
-        false,
-        &None,
-        true,
-        &Vec::new(),
-    )?;
-
-    assert!(cache_dir.exists(), "cache directory was not created!");
-
-    Ok(())
-}
-
-#[test]
 fn test_zlib_ver_example_project_cmake_generation() -> anyhow::Result<()> {
     let temp_dir = tempdir()?;
     let test_root = temp_dir.path();
@@ -138,36 +153,6 @@ fn test_zlib_ver_example_project_cmake_generation() -> anyhow::Result<()> {
         expected_cmake_path.exists(),
         "CMakeLists.txt was not generated inside the cache directory!"
     );
-
-    Ok(())
-}
-
-#[test]
-fn test_zlib_ver_self_build_system() -> anyhow::Result<()> {
-    let temp_dir = tempdir()?;
-    let test_root = temp_dir.path();
-    let cache_dir = test_root.join(".csalt");
-
-    let example_src = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("examples")
-        .join("zlib-ver");
-    if example_src.exists() {
-        copy_dir_all(&example_src, test_root)?;
-    } else {
-        anyhow::bail!("example source directory does not exist");
-    }
-
-    build_manual_project(
-        &None,
-        &Some(PathBuf::from(test_root)),
-        &None,
-        false,
-        &None,
-        true,
-        &Vec::new(),
-    )?;
-
-    assert!(cache_dir.exists(), "cache directory was not created!");
 
     Ok(())
 }
