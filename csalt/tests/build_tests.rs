@@ -1,10 +1,11 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+// If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org.
+// Copyright (c) 2026 Escapee Organization
+
+use csalt::{build_managed_project, build_manual_project};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tempfile::tempdir;
-
-use csalt::{build_managed_project, build_manual_project};
-
-// TODO: If you're going to use the `examples/` as the source for many tests, why not just loop over 'em? Unable to see exactly what went wrong without it clogging the whole thing perhaps? Figure it out, copy-pasting sucks
 
 // TODO: Move to use nice function in fs_utils, `walk_and_filter_dirs()` later
 fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> anyhow::Result<()> {
