@@ -22,6 +22,8 @@ DumpStack.log.tmp
 .fuse_hidden*
 .directory
 
+# === IDE ===
+
 # -- ZED --
 .zed/
 
