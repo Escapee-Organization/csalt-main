@@ -326,8 +326,39 @@ pub fn init_default_gitignore(dir: &Path, stealth: bool) -> anyhow::Result<()> {
             .write(true)
             .create_new(true)
             .open(&gitignore_path)?;
-        writeln!(gitignore, "build/")?;
-        writeln!(gitignore, ".csalt/")?;
+
+        // NOTE: Should check for any C-related artifacts at another time
+        let raw_gitignore_content = r"# === C-Salt ===
+build/
+.csalt/
+
+# === ENV ===
+
+# -- MAC --
+.DS_Store
+.AppleDouble
+.LSOverride
+# -- WINDOWS --
+Thumbs.db
+ehthumbs.db
+DumpStack.log.tmp
+# -- LINUX --
+.fuse_hidden*
+.directory
+
+# === IDE ===
+
+# -- ZED --
+.zed/
+# -- VSCODE --
+.vscode/*
+!.vscode/tasks.json
+!.vscode/extensions.json
+# -- JETBRAINS --
+.idea/
+*.iml";
+
+        writeln!(gitignore, "{}", raw_gitignore_content)?;
 
         if stealth {
             writeln!(gitignore, "Salt.toml")?;
