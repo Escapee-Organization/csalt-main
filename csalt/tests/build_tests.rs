@@ -28,6 +28,8 @@ fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> anyhow::Result<
     Ok(())
 }
 
+// FIXME: The following test below this comment appears to fail on my windows laptop. Interestingly, it only fails after successful compilation, seeming to call `clang` at the last second after cleaning and failing the whole test since it doesn't exist here.
+
 #[test]
 fn test_all_example_projects_csalt_compile() -> anyhow::Result<()> {
     let examples_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples");
