@@ -10,5 +10,5 @@ edition = "c11"
 [[unit]]
 name = "lib"
 kind = "lib"
-src = ["src/"]
+src = ["src"]
 include = ["include"]

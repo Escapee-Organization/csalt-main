@@ -273,8 +273,8 @@ pub fn init_default_salt_toml(project_name: &str, dir: &Path) -> anyhow::Result<
         unit: vec![crate::config::UnitVector {
             name: project_name.to_string(),
             kind: crate::config::UnitKinds::Bin,
-            src: vec![PathBuf::from("src/")],
-            include: Some(vec![PathBuf::from("include/")]),
+            src: vec![PathBuf::from("src")],
+            include: None,
             deps: None,
             compiler_flags: None,
             linker_flags: None,

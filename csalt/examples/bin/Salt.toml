@@ -10,4 +10,4 @@ edition = "c11"
 [[unit]]
 name = "bin"
 kind = "bin"
-src = ["src/"]
+src = ["src"]

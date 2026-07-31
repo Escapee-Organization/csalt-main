@@ -57,7 +57,7 @@ compiler = "clang" # As of now, only gcc, clang, and zig are supported
 [[unit]]
 name = "example"
 kind = "bin"
-src = ["src/"] # First file (or first file in folder) is implied to be the main file
+src = ["src"] # First file (or first file in folder) is implied to be the main file
 ```
 
 **NOTE**: C-Salt is a Minimum Viable Product (MVP) in this current stage. It is not ready for production use, will change heavily, has unfinished features, and is not battle-tested against every edge case, especially for cross-platform uses.
