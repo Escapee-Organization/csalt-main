@@ -160,6 +160,9 @@ fn suggest_installation_commands(dep: &str) {
         ("pacman", format!("pacman -Ss {}", dep)),
         ("brew", format!("brew search {}", dep)),
         ("nix", format!("nix-env -qaP '.*{}.*'", dep)),
+        ("winget", format!("winget search {}", dep)),
+        ("vcpkg", format!("vcpkg search {}", dep)),
+        ("scoop", format!("scoop search {}", dep)),
     ];
 
     let mut found_any = false;
@@ -171,6 +174,12 @@ fn suggest_installation_commands(dep: &str) {
             println!("    {}", search_command);
             found_any = true;
         }
+    }
+    if found_any {
+        println!(
+            "\n[info] Note that the `pkg` '{}' may be listed under a different name in any of the above commands",
+            dep
+        );
     }
 
     println!("[help] You may install it using alternative methods or manually");
