@@ -94,12 +94,12 @@ csalt --help
 
 - **`csalt new <name>`**: Provisions a standardized C workspace complete with `src/`, `include/`, `.gitignore` instantly.
   - `--git`: Auto-initializes a Git repository.
-  - `--full`: Populates placeholder directories for `vendor/` and `tests/` and `README.md`.
+  - `--template`: Allows the usage of specific C repository configurations for ease of starting. Currently supports `bin` and `lib` kinds.
   - `--stealth`: **Stealth Mode.** Removes configuration files from tracking so you can secretly manage massive legacy codebases with C-Salt without disrupting your team. *Note: it is always wise to copy an existing C project into a new directory before using C-Salt.*
 - **`csalt compile`**: Executes C-Salt as a build system, calling the compiler and linker inside the cache (`.csalt/`), and enforcing a strict, safe compilation order. *Note: has limitations on the `dyn` kind.*
 - **`csalt build`**: Automatically acts as a communicator to a build system, such as CMake 3.15. It has two modes:
-  - **Fresh Mode**: Translates your linear `Salt.toml` structure seamlessly into native, readable `CMakeLists.txt` scripts for CMake 3.15, compiling the workspace cleanly.
-  - **Managed Mode**: Detects if you already have a custom, manual `CMakeLists.txt` in your root, safely steps out of the way, and passes command execution downstream to trust your existing script.
+  - **Fresh Mode**: Translates your linear `Salt.toml` structure seamlessly into native, readable `CMakeLists.txt` scripts for CMake 3.15, compiling the workspace cleanly. To force, use `--mode fresh`.
+  - **Managed Mode**: Detects if you already have a custom, manual `CMakeLists.txt` in your root, safely steps out of the way, and passes command execution downstream to trust your existing script. To force, use `--mode managed`.
 - **Raw Passthrough Escape Hatch**: Pass trailing variable arguments directly to your underlying backend (`csalt (compile/build) -- [args]`) to run raw commands. In other words, it's a macro for:
   - ```bash
     csalt emit
@@ -111,7 +111,7 @@ csalt --help
 ## FAQ
 
 1. **What are the kinds of `[[unit]]` I can use?**
-  - There are 5 basic kinds of `[[unit]]` you can use:
+  - There are 6 basic kinds of `[[unit]]` you can use:
   - `bin` (binary, e.g. `main` or `main.exe`)
   - `lib` (static library, e.g. `libmath.a` or `math.lib`)
   - `dyn` (dynamic library, e.g. `libmath.dll` or `libmath.so`)
@@ -125,7 +125,7 @@ csalt --help
 ## AI Usage Disclosure
 All architectural decisions were made by the original creator. A large portion of the current codebase was generated using the Zed Auto-complete functionality and Gemini Flash.
 
-* **Current Status:** Refactoring is underway to clean up AI-generated sections, optimize maintainability, and ensure long-term stability.
+* **Current Status:** Refactoring is underway to clean up AI-generated sections, optimize maintainability, and ensure long-term stability. Current progress on the refactor is going *well*.
 * **Why AI?:** This was the original creator's first Rust project, which started on 2026/6/7, and finished the summer MVP on 2026/7/10 (albeit not testing). The creator had only written simple "Hello World" programs in C and Rust before this project, so they had to actively learn Rust and C at the same time while working on this project. They used AI to speed up development, get working code quickly, and quickly learn how to use Rust, Git, and more. They also were able to learn enough to spot the mistakes in AI-generated code, which was common due to using a weak model.
 
 ## Roadmap
