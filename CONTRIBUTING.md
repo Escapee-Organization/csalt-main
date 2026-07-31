@@ -27,6 +27,7 @@ On all issues, if you are willing to contribute, drop a comment letting us know 
 - Find a comment within the codebase which begins with either `NOTE:`, `TODO:`, or `FIXME:`.
 - Check the Issues tab to see if the issue has already been moved.
 - If the issue has not been moved, create a new issue using our bug, feature request, or todo template.
+- *NOTE*: Please list the commit information and file and line number, as otherwise it might get lost.
 
 ### Submitting Code (Pull Requests)
 1. Fork the repository and clone it locally.
