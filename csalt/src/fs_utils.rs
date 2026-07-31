@@ -266,9 +266,9 @@ pub fn init_default_salt_toml(project_name: &str, dir: &Path) -> anyhow::Result<
         build: crate::config::BuildSection {
             build_sys: None,
             build_sys_ver: None,
-            build_dir: Some(PathBuf::from("build/")),
+            build_dir: None,
             edition: crate::config::CEditions::C11,
-            compiler: Some(crate::config::CompilerBackend::Clang),
+            compiler: None,
         },
         unit: vec![crate::config::UnitVector {
             name: project_name.to_string(),
