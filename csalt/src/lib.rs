@@ -115,17 +115,19 @@ pub fn build_manual_project(
     });
     emit_project(&base_dir, &cache_dir, &out_bin_dir, None, verbose_on)?;
 
-    if !backend_flags.is_empty() {
-        let target_compiler = if let Some(backend) = &backend {
-            CompilerBackend::try_from(backend.as_str())?
-        } else {
-            match lock.manifest.build.compiler {
-                Some(backend) => backend,
-                None => CompilerBackend::attempt_find_compiler()?,
-            }
-        };
+    let compiler_backend: CompilerBackend = if let Some(backend) = &backend {
+        CompilerBackend::try_from(backend.as_str())?
+    } else {
+        match lock.manifest.build.compiler {
+            Some(ref backend) => backend.clone(),
+            None => CompilerBackend::attempt_find_compiler()?,
+        }
+    };
 
-        let mut actual_compiler = target_compiler.generate_command();
+    verify_command(compiler_backend.to_string().as_str())?;
+
+    if !backend_flags.is_empty() {
+        let mut actual_compiler = compiler_backend.generate_command();
         actual_compiler.args(backend_flags.iter());
         actual_compiler.current_dir(&cache_dir);
         let status = actual_compiler.status()?;
@@ -144,16 +146,6 @@ pub fn build_manual_project(
     );
     fs::create_dir_all(&in_bin_dir)?;
 
-    let compiler_backend: CompilerBackend = if let Some(backend) = &backend {
-        CompilerBackend::try_from(backend.as_str())?
-    } else {
-        match lock.manifest.build.compiler {
-            Some(ref backend) => backend.clone(),
-            None => CompilerBackend::attempt_find_compiler()?,
-        }
-    };
-
-    verify_command(compiler_backend.to_string().as_str())?;
     let build_plan = prepare_build_plan(&lock, &base_dir)?;
 
     for unit in build_plan {
