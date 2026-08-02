@@ -51,22 +51,8 @@ impl TryFrom<&str> for BuildMode {
 /// csalt::helpers::verify_command("mkdir").unwrap();
 /// ```
 pub fn verify_command(command_name: &str) -> anyhow::Result<()> {
-    match std::process::Command::new(command_name).spawn() {
-        Ok(mut child) => {
-            // Kill the child! Kill the child!
-            let _ = child.kill();
-            let _ = child.wait();
-            Ok(())
-        }
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            // The binary is definitively missing from the system
-            Err(anyhow::anyhow!("Command '{}' not found", command_name))
-        }
-        Err(_) => {
-            // It exists, but we ran into a permission/OS blockade (which counts as existing!)
-            Ok(())
-        }
-    }
+    which::which(command_name)?;
+    Ok(())
 }
 
 /// Attaches the Zig target argument to the command if the backend is Zig.
