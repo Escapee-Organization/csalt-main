@@ -552,7 +552,8 @@ pub fn build_managed_project(
             cmake_configure
                 .current_dir(&cache_dir)
                 .arg("-B")
-                .arg(floating_build_dir);
+                .arg(floating_build_dir)
+                .arg("-DCMAKE_EXPORT_COMPILE_COMMANDS=ON");
             if let Some(compiler) = &lock.manifest.build.compiler {
                 // NOTE: Why is it this way and not the other way?
                 if verify_command(compiler.to_string().as_str()).is_err() {
@@ -584,6 +585,13 @@ pub fn build_managed_project(
             let build_status = cmake_build.status()?;
             if !build_status.success() {
                 anyhow::bail!("CMake build step failed");
+            }
+
+            // NOTE: Like some of this repository, this hasn't been tsted yet
+            let cmake_json_path = cache_dir.join("compile_commands.json");
+            let root_json_path = base_dir.join("compile_commands.json");
+            if cmake_json_path.exists() {
+                fs::copy(cmake_json_path, root_json_path)?;
             }
 
             if mode == BuildMode::Managed {
