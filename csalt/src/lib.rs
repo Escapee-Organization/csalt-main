@@ -282,7 +282,6 @@ pub fn build_manual_project(
 
         println!("[info] Compiled unit: {}", unit.name);
 
-        // If this unit was a Static Library, we must pack the resulting object files into a .a container
         if unit.kind == UnitKinds::Lib {
             println!(
                 "[info] Packing static archive for library unit: {}",
