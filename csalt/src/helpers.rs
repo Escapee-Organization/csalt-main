@@ -3,6 +3,7 @@
 // Copyright (c) 2026 Escapee Organization
 
 use crate::config::UnitKinds;
+use serde::{Deserialize, Serialize};
 
 pub mod linker;
 
@@ -26,6 +27,13 @@ pub struct PreparedUnit {
 pub enum BuildMode {
     Managed,
     Fresh,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct CompileCommand {
+    pub directory: String,
+    pub file: String,
+    pub arguments: Vec<String>,
 }
 
 // ---------------- DATA -> FUNCTIONS ----------------

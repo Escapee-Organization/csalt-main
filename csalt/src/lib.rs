@@ -147,6 +147,7 @@ pub fn build_manual_project(
     fs::create_dir_all(&in_bin_dir)?;
 
     let build_plan = prepare_build_plan(&lock, &base_dir)?;
+    let mut compile_commands_db: Vec<helpers::CompileCommand> = Vec::new();
 
     for unit in build_plan {
         if unit.kind == UnitKinds::ExtLib
@@ -265,6 +266,56 @@ pub fn build_manual_project(
                     target_compiler.arg("-o").arg(&obj_output);
                 }
             }
+
+            // NOTE: This is the beginning of atrocious code. Emitting `compile_commands.json` has been really hard for no good reason
+            let Ok(compiler_path) = which::which(compiler_backend.to_string()) else {
+                anyhow::bail!(
+                    "couldn't locate compiler '{}' binary location",
+                    compiler_backend
+                )
+            };
+
+            let mut lsp_args = vec![compiler_path.into_os_string()];
+
+            if compiler_backend == CompilerBackend::Zig {
+                lsp_args.push("cc".into());
+                if let Some(target) = &zig_target {
+                    lsp_args.push("-target".into());
+                    lsp_args.push(target.into());
+                }
+            }
+
+            let lsp_include_paths = unit.include.clone().unwrap_or_default();
+            for include_path in lsp_include_paths {
+                if let Ok(lsp_absolute_inc) = include_path.canonicalize() {
+                    lsp_args.push("-I".into());
+                    lsp_args.push(util::clean_windows_path(lsp_absolute_inc).into_os_string());
+                }
+            }
+
+            lsp_args.extend(
+                unit.unpack_compiler_flags
+                    .clone()
+                    .into_iter()
+                    .map(Into::into),
+            );
+            lsp_args.push(format!("-std={}", lock.manifest.build.edition).into());
+            lsp_args.extend(unit.compiler_flags.clone().into_iter().map(Into::into));
+
+            lsp_args.push("-c".into());
+            lsp_args.push(src_file.into());
+
+            lsp_args.push("-o".into());
+            lsp_args.push(obj_output.into());
+
+            compile_commands_db.push(helpers::CompileCommand {
+                directory: base_dir.clone().to_string_lossy().into_owned(),
+                file: src_file.clone().to_string_lossy().into_owned(),
+                arguments: lsp_args
+                    .into_iter()
+                    .map(|arg| arg.to_string_lossy().into_owned())
+                    .collect(),
+            });
 
             // --- VERBOSE ---
             if verbose_on {
@@ -390,6 +441,14 @@ pub fn build_manual_project(
                 out_bin_dir.to_string_lossy()
             );
         }
+    }
+
+    let json_out_path = base_dir.join("compile_commands.json");
+    if let Ok(file) = std::fs::File::create(&json_out_path)
+        && serde_json::to_writer_pretty(file, &compile_commands_db).is_ok()
+        && verbose_on
+    {
+        println!("[info] Generated compile_commands.json at project root.");
     }
 
     Ok(())
