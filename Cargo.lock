@@ -306,7 +306,7 @@ dependencies = [
 
 [[package]]
 name = "csalt"
-version = "0.11.3"
+version = "0.11.4"
 dependencies = [
  "anstream",
  "anyhow",
