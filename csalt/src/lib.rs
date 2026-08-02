@@ -196,7 +196,9 @@ pub fn build_manual_project(
                             target_compiler.arg(format!("/I{}", absolute_inc.display()));
                         }
                         _ => {
-                            target_compiler.arg("-I").arg(&absolute_inc);
+                            target_compiler
+                                .arg("-I")
+                                .arg(util::clean_windows_path(absolute_inc));
                         }
                     }
                 }
