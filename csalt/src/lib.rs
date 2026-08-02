@@ -438,6 +438,8 @@ pub fn build_managed_project(
             .ok_or(anyhow::anyhow!("no build system specified"))?
     };
 
+    verify_command(&backend.to_string())?;
+
     if !backend_flags.is_empty() {
         let plan = prepare_build_plan(&lock, &base_dir)?;
         emit_project(&base_dir, &cache_dir, build_dir, Some(plan), verbose)?;
