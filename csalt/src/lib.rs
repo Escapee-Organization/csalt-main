@@ -66,7 +66,7 @@ pub fn emit_project(
     verbose: bool,
 ) -> anyhow::Result<()> {
     fs_utils::verify_workspace(base_dir)?;
-    fs_utils::copy_project_files(base_dir, cache_dir, build_dir, verbose)?;
+    fs_utils::copy_project_files(base_dir, cache_dir, verbose)?;
     let salt_toml_str = fs::read_to_string(base_dir.join("Salt.toml"))?;
     let current_toml: SaltToml = toml::from_str(&salt_toml_str)?;
 

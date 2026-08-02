@@ -81,7 +81,7 @@ fn run_csalt() -> anyhow::Result<()> {
             println!("[Success] Project emitted successfully");
         }
 
-        Commands::Clean { path, verbose } => {
+        Commands::Clean { path, verbose, all } => {
             let base_dir = path.clone().unwrap_or(std::env::current_dir()?);
             let toml = toml::from_str(&std::fs::read_to_string(base_dir.join("Salt.toml"))?)?;
             let lock = csalt::fs_utils::load_or_init_lock(&toml)?;
@@ -92,8 +92,13 @@ fn run_csalt() -> anyhow::Result<()> {
                     .as_deref()
                     .unwrap_or(std::path::Path::new("build")),
             );
-            fs_utils::clean_cache_dir(base_dir, build_dir, *verbose)?;
-            println!("[Success] Cache directory cleaned successfully");
+            fs_utils::clean_this_dir(&base_dir.join(".csalt"), *verbose)?;
+
+            if *all {
+                fs_utils::clean_this_dir(&build_dir, *verbose)?;
+            }
+
+            println!("[Success] cleaned successfully");
         }
 
         Commands::Build(build_args) => {

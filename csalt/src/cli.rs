@@ -44,7 +44,7 @@ pub enum Commands {
     #[command(name = "emit")]
     Emit(EmitArgs),
 
-    /// Clean the cache directory (.csalt/)
+    /// Clean the cache directory (.csalt/) or assorted directories
     #[command(name = "clean")]
     Clean {
         /// Changes where the operation will be performed
@@ -52,8 +52,12 @@ pub enum Commands {
         path: Option<PathBuf>,
 
         /// Enables verbose output
-        #[arg(long = "verbose")]
+        #[arg(long = "verbose", short = 'V')]
         verbose: bool,
+
+        /// Cleans every directory
+        #[arg(long = "all")]
+        all: bool,
     },
 }
 

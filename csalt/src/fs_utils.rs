@@ -134,22 +134,6 @@ pub fn clean_this_dir(dir: &Path, verbose_on: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-// TODO: Remove this function and use above `clean_this_dir()` so you can clean both cache and build directories in one call, or separately.
-pub fn clean_cache_dir(
-    base_dir: PathBuf,
-    build_dir: PathBuf,
-    verbose_on: bool,
-) -> anyhow::Result<()> {
-    let base_directory = base_dir.canonicalize()?;
-    verify_workspace(&base_directory)?;
-    let cache_dir = base_directory.join(".csalt");
-
-    clean_this_dir(&cache_dir, verbose_on)?;
-    clean_this_dir(&build_dir, verbose_on)?;
-
-    Ok(())
-}
-
 /// Walks through the directory and filters out excluded directories and files, and files with unsupported extensions. Excluded directories only apply to the current directory level.
 ///
 /// ### Examples
@@ -216,13 +200,8 @@ pub fn walk_and_filter_dirs(
 
 /// Copies project files to the cache directory, excluding `Salt.lock`, `Salt.toml`, and others
 /// TODO: Consider using `Salt.lock` to exclude unnecessary file copying and cache cleaning
-pub fn copy_project_files(
-    base_dir: &Path,
-    cache_dir: &Path,
-    build_dir: &Path,
-    verbose: bool,
-) -> anyhow::Result<()> {
-    clean_cache_dir(base_dir.to_path_buf(), build_dir.to_path_buf(), verbose)?;
+pub fn copy_project_files(base_dir: &Path, cache_dir: &Path, verbose: bool) -> anyhow::Result<()> {
+    clean_this_dir(cache_dir, verbose)?;
     let excluded_dirs = [".csalt", ".git", "build"];
     let excluded_files = ["Salt.toml", "Salt.lock", ".gitignore"];
 
