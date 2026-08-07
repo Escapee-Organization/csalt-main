@@ -3,6 +3,7 @@
 // Copyright (c) 2026 Escapee Organization
 
 use crate::config::UnitKinds;
+use serde::{Deserialize, Serialize};
 
 pub mod linker;
 
@@ -28,6 +29,13 @@ pub enum BuildMode {
     Fresh,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct CompileCommand {
+    pub directory: String,
+    pub file: String,
+    pub arguments: Vec<String>,
+}
+
 // ---------------- DATA -> FUNCTIONS ----------------
 
 impl TryFrom<&str> for BuildMode {
@@ -51,22 +59,8 @@ impl TryFrom<&str> for BuildMode {
 /// csalt::helpers::verify_command("mkdir").unwrap();
 /// ```
 pub fn verify_command(command_name: &str) -> anyhow::Result<()> {
-    match std::process::Command::new(command_name).spawn() {
-        Ok(mut child) => {
-            // Kill the child! Kill the child!
-            let _ = child.kill();
-            let _ = child.wait();
-            Ok(())
-        }
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            // The binary is definitively missing from the system
-            Err(anyhow::anyhow!("Command '{}' not found", command_name))
-        }
-        Err(_) => {
-            // It exists, but we ran into a permission/OS blockade (which counts as existing!)
-            Ok(())
-        }
-    }
+    which::which(command_name)?;
+    Ok(())
 }
 
 /// Attaches the Zig target argument to the command if the backend is Zig.
@@ -160,6 +154,9 @@ fn suggest_installation_commands(dep: &str) {
         ("pacman", format!("pacman -Ss {}", dep)),
         ("brew", format!("brew search {}", dep)),
         ("nix", format!("nix-env -qaP '.*{}.*'", dep)),
+        ("winget", format!("winget search {}", dep)),
+        ("vcpkg", format!("vcpkg search {}", dep)),
+        ("scoop", format!("scoop search {}", dep)),
     ];
 
     let mut found_any = false;
@@ -171,6 +168,12 @@ fn suggest_installation_commands(dep: &str) {
             println!("    {}", search_command);
             found_any = true;
         }
+    }
+    if found_any {
+        println!(
+            "\n[info] Note that the `pkg` '{}' may be listed under a different name in any of the above commands",
+            dep
+        );
     }
 
     println!("[help] You may install it using alternative methods or manually");
@@ -323,8 +326,7 @@ pub fn prepare_build_plan(
                 if let Some((compiler_flags, linker_flags)) = known_packages.get(dep) {
                     new_compiler_flags.extend(compiler_flags.clone());
                     new_linker_flags.extend(linker_flags.clone());
-                }
-                if verify_command("pkg-config").is_ok() {
+                } else if verify_command("pkg-config").is_ok() {
                     call_and_record_pkg_config(
                         dep,
                         &mut new_compiler_flags,

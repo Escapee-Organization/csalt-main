@@ -66,7 +66,7 @@ pub fn emit_project(
     verbose: bool,
 ) -> anyhow::Result<()> {
     fs_utils::verify_workspace(base_dir)?;
-    fs_utils::copy_project_files(base_dir, cache_dir, build_dir, verbose)?;
+    fs_utils::copy_project_files(base_dir, cache_dir, verbose)?;
     let salt_toml_str = fs::read_to_string(base_dir.join("Salt.toml"))?;
     let current_toml: SaltToml = toml::from_str(&salt_toml_str)?;
 
@@ -115,17 +115,19 @@ pub fn build_manual_project(
     });
     emit_project(&base_dir, &cache_dir, &out_bin_dir, None, verbose_on)?;
 
-    if !backend_flags.is_empty() {
-        let target_compiler = if let Some(backend) = &backend {
-            CompilerBackend::try_from(backend.as_str())?
-        } else {
-            match lock.manifest.build.compiler {
-                Some(backend) => backend,
-                None => CompilerBackend::attempt_find_compiler()?,
-            }
-        };
+    let compiler_backend: CompilerBackend = if let Some(backend) = &backend {
+        CompilerBackend::try_from(backend.as_str())?
+    } else {
+        match lock.manifest.build.compiler {
+            Some(ref backend) => backend.clone(),
+            None => CompilerBackend::attempt_find_compiler()?,
+        }
+    };
 
-        let mut actual_compiler = target_compiler.generate_command();
+    verify_command(compiler_backend.to_string().as_str())?;
+
+    if !backend_flags.is_empty() {
+        let mut actual_compiler = compiler_backend.generate_command();
         actual_compiler.args(backend_flags.iter());
         actual_compiler.current_dir(&cache_dir);
         let status = actual_compiler.status()?;
@@ -144,17 +146,8 @@ pub fn build_manual_project(
     );
     fs::create_dir_all(&in_bin_dir)?;
 
-    let compiler_backend: CompilerBackend = if let Some(backend) = &backend {
-        CompilerBackend::try_from(backend.as_str())?
-    } else {
-        match lock.manifest.build.compiler {
-            Some(ref backend) => backend.clone(),
-            None => CompilerBackend::attempt_find_compiler()?,
-        }
-    };
-
-    verify_command(compiler_backend.to_string().as_str())?;
     let build_plan = prepare_build_plan(&lock, &base_dir)?;
+    let mut compile_commands_db: Vec<helpers::CompileCommand> = Vec::new();
 
     for unit in build_plan {
         if unit.kind == UnitKinds::ExtLib
@@ -204,7 +197,9 @@ pub fn build_manual_project(
                             target_compiler.arg(format!("/I{}", absolute_inc.display()));
                         }
                         _ => {
-                            target_compiler.arg("-I").arg(&absolute_inc);
+                            target_compiler
+                                .arg("-I")
+                                .arg(util::clean_windows_path(absolute_inc));
                         }
                     }
                 }
@@ -272,6 +267,56 @@ pub fn build_manual_project(
                 }
             }
 
+            // NOTE: This is the beginning of atrocious code. Emitting `compile_commands.json` has been really hard for no good reason
+            let Ok(compiler_path) = which::which(compiler_backend.to_string()) else {
+                anyhow::bail!(
+                    "couldn't locate compiler '{}' binary location",
+                    compiler_backend
+                )
+            };
+
+            let mut lsp_args = vec![compiler_path.into_os_string()];
+
+            if compiler_backend == CompilerBackend::Zig {
+                lsp_args.push("cc".into());
+                if let Some(target) = &zig_target {
+                    lsp_args.push("-target".into());
+                    lsp_args.push(target.into());
+                }
+            }
+
+            let lsp_include_paths = unit.include.clone().unwrap_or_default();
+            for include_path in lsp_include_paths {
+                if let Ok(lsp_absolute_inc) = include_path.canonicalize() {
+                    lsp_args.push("-I".into());
+                    lsp_args.push(util::clean_windows_path(lsp_absolute_inc).into_os_string());
+                }
+            }
+
+            lsp_args.extend(
+                unit.unpack_compiler_flags
+                    .clone()
+                    .into_iter()
+                    .map(Into::into),
+            );
+            lsp_args.push(format!("-std={}", lock.manifest.build.edition).into());
+            lsp_args.extend(unit.compiler_flags.clone().into_iter().map(Into::into));
+
+            lsp_args.push("-c".into());
+            lsp_args.push(src_file.into());
+
+            lsp_args.push("-o".into());
+            lsp_args.push(obj_output.into());
+
+            compile_commands_db.push(helpers::CompileCommand {
+                directory: base_dir.clone().to_string_lossy().into_owned(),
+                file: src_file.clone().to_string_lossy().into_owned(),
+                arguments: lsp_args
+                    .into_iter()
+                    .map(|arg| arg.to_string_lossy().into_owned())
+                    .collect(),
+            });
+
             // --- VERBOSE ---
             if verbose_on {
                 println!("[cmd compiler] {:?}", target_compiler);
@@ -290,7 +335,6 @@ pub fn build_manual_project(
 
         println!("[info] Compiled unit: {}", unit.name);
 
-        // If this unit was a Static Library, we must pack the resulting object files into a .a container
         if unit.kind == UnitKinds::Lib {
             println!(
                 "[info] Packing static archive for library unit: {}",
@@ -399,6 +443,14 @@ pub fn build_manual_project(
         }
     }
 
+    let json_out_path = base_dir.join("compile_commands.json");
+    if let Ok(file) = std::fs::File::create(&json_out_path)
+        && serde_json::to_writer_pretty(file, &compile_commands_db).is_ok()
+        && verbose_on
+    {
+        println!("[info] Generated compile_commands.json at project root.");
+    }
+
     Ok(())
 }
 
@@ -445,6 +497,8 @@ pub fn build_managed_project(
             .clone()
             .ok_or(anyhow::anyhow!("no build system specified"))?
     };
+
+    verify_command(&backend.to_string())?;
 
     if !backend_flags.is_empty() {
         let plan = prepare_build_plan(&lock, &base_dir)?;
@@ -498,7 +552,8 @@ pub fn build_managed_project(
             cmake_configure
                 .current_dir(&cache_dir)
                 .arg("-B")
-                .arg(floating_build_dir);
+                .arg(floating_build_dir)
+                .arg("-DCMAKE_EXPORT_COMPILE_COMMANDS=ON");
             if let Some(compiler) = &lock.manifest.build.compiler {
                 // NOTE: Why is it this way and not the other way?
                 if verify_command(compiler.to_string().as_str()).is_err() {
@@ -530,6 +585,13 @@ pub fn build_managed_project(
             let build_status = cmake_build.status()?;
             if !build_status.success() {
                 anyhow::bail!("CMake build step failed");
+            }
+
+            // NOTE: Like some of this repository, this hasn't been tsted yet
+            let cmake_json_path = cache_dir.join("compile_commands.json");
+            let root_json_path = base_dir.join("compile_commands.json");
+            if cmake_json_path.exists() {
+                fs::copy(cmake_json_path, root_json_path)?;
             }
 
             if mode == BuildMode::Managed {

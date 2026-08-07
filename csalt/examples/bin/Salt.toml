@@ -1,0 +1,13 @@
+[package]
+name = "bin"
+version = "0.1.0"
+authors = [""]
+description = ""
+
+[build]
+edition = "c11"
+
+[[unit]]
+name = "bin"
+kind = "bin"
+src = ["src"]

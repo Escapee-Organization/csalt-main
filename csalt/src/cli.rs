@@ -5,7 +5,7 @@
 use clap::{ArgAction, Parser};
 use std::path::PathBuf;
 
-/// csalt - A CLI tool that makes C modern without (much) compromise
+/// csalt - A CLI tool that *attempts *makes C modern without (much) compromise
 #[derive(Parser, Debug)]
 #[command(author = "Escapee-Organization", version, about, long_about = None, name = "csalt")]
 pub struct Args {
@@ -44,7 +44,7 @@ pub enum Commands {
     #[command(name = "emit")]
     Emit(EmitArgs),
 
-    /// Clean the cache directory (.csalt/)
+    /// Clean the cache directory (.csalt/) or assorted directories
     #[command(name = "clean")]
     Clean {
         /// Changes where the operation will be performed
@@ -52,8 +52,12 @@ pub enum Commands {
         path: Option<PathBuf>,
 
         /// Enables verbose output
-        #[arg(long = "verbose")]
+        #[arg(long = "verbose", short = 'V')]
         verbose: bool,
+
+        /// Cleans every directory
+        #[arg(long = "all")]
+        all: bool,
     },
 }
 
@@ -66,9 +70,9 @@ pub struct NewArgs {
     #[arg(short = 'd', long = "dir")]
     pub dir: Option<String>,
 
-    /// Full project initialization, such as adding `vendor/` and `tests/`
-    #[arg(short = 'f', long = "full")]
-    pub full: bool,
+    /// Arranges workspace to fit specific goals
+    #[arg(short = 't', long = "template", default_value = "bin")]
+    pub template: String,
 
     /// Stealth mode, suppresses output messages
     #[arg(long = "stealth")]
@@ -102,7 +106,7 @@ pub struct CompileArgs {
     pub zig_target: Option<String>,
 
     /// Verbose mode, enables verbose output
-    #[arg(long = "verbose")]
+    #[arg(long = "verbose", short = 'V')]
     pub verbose: bool,
 
     /// Trailing parameters forwarded completely intact to the backend compiler layer
@@ -129,7 +133,7 @@ pub struct BuildArgs {
     pub zig_target: Option<String>,
 
     /// Verbose mode, enables verbose output
-    #[arg(long = "verbose")]
+    #[arg(long = "verbose", short = 'V')]
     pub verbose: bool,
 
     /// Trailing parameters forwarded completely intact to the backend compiler layer
@@ -149,6 +153,6 @@ pub struct EmitArgs {
     pub build_file: bool,
 
     /// Verbose mode, enables verbose output
-    #[arg(long = "verbose")]
+    #[arg(long = "verbose", short = 'V')]
     pub verbose: bool,
 }

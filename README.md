@@ -6,9 +6,8 @@
   <h1>C-Salt</h1>
 </div>
 
-
 <p align="center">
-  <strong>"Drop your C files and it just works."</strong><br><br> A Cargo-inspired, declarative build driver and workspace orchestrator designed to eliminate manual compilation headaches while not compromising absolute control over your repo.
+  <strong>"Drop your C files and it just works,"</strong> <em> with limits...</em><br><br> A Cargo-inspired, declarative build driver and workspace orchestrator designed to eliminate manual compilation headaches while not compromising absolute control over your repo.
 </p>
 
 <p align="center">
@@ -35,7 +34,8 @@
 - [Contributing and Licensing](#contributing-and-licensing)
 
 ## Why C-Salt?
-C isn't a bad language. However, the tooling is tedious and old. C-Salt aims to solve this by providing a modern, Cargo-inspired build orchestrator. It operates on a compilation "unit", which allows for easy management of C projects at the start. However, it also doesn't force `Salt.toml` upon you if you don't want to use it, as C-Salt is a lightweight wrapper, not a replacement.
+
+C isn't a bad language. However, the tooling is tedious and old. C-Salt aims to solve this by providing a modern, Cargo-inspired build orchestrator. It operates on a compilation "unit", which allows for easy management of C projects at the start. However, it also doesn't force `Salt.toml` to be the only source of compilation, as C-Salt is meant to aide, not replace.
 
 **NOTE**: we use `.csalt/` as a cache for all of its tasks so far to keep your repo clean, but in the future, you will be able to adjust that.
 
@@ -57,18 +57,21 @@ compiler = "clang" # As of now, only gcc, clang, and zig are supported
 [[unit]]
 name = "example"
 kind = "bin"
-src = ["src/"] # First file (or first file in folder) is implied to be the main file
+src = ["src"] # First file (or first file in folder) is implied to be the main file
 ```
 
 **NOTE**: C-Salt is a Minimum Viable Product (MVP) in this current stage. It is not ready for production use, will change heavily, has unfinished features, and is not battle-tested against every edge case, especially for cross-platform uses.
 
 ## Quick Start
+
 There are a few ways to get started with C-Salt:
 
 ### 1. Releases
+
 Download the latest pre-release from the [releases page](https://github.com/Escapee-Organization/csalt-main/releases).
 
 ### 2. Crates.io
+
 If you have Cargo installed, you can install C-Salt directly from [crates.io](https://crates.io/crates/csalt):
 
 ```bash
@@ -76,6 +79,7 @@ cargo install csalt
 ```
 
 ### 3. Source
+
 If you prefer to build from source, you can clone the repository and install it locally:
 
 ```bash
@@ -92,14 +96,15 @@ csalt --help
 
 ## Features
 
-- **`csalt new <name>`**: Provisions a standardized C workspace complete with `src/`, `include/`, `.gitignore` instantly.
+- `csalt new <name>`: Provisions a standardized C workspace complete with `src/`, `include/`, `.gitignore` instantly.
   - `--git`: Auto-initializes a Git repository.
-  - `--full`: Populates placeholder directories for `vendor/` and `tests/` and `README.md`.
-  - `--stealth`: **Stealth Mode.** Removes configuration files from tracking so you can secretly manage massive legacy codebases with C-Salt without disrupting your team. *Note: it is always wise to copy an existing C project into a new directory before using C-Salt.*
-- **`csalt compile`**: Executes C-Salt as a build system, calling the compiler and linker inside the cache (`.csalt/`), and enforcing a strict, safe compilation order. Supports `bin`, `lib`, and `dyn` out of the box.
-- **`csalt build`**: Automatically acts as a communicator to a build system, such as CMake 3.15. It has two modes:
-  - **Fresh Mode**: Translates your linear `Salt.toml` structure seamlessly into native, readable `CMakeLists.txt` scripts for CMake 3.15, compiling the workspace cleanly.
-  - **Managed Mode**: Detects if you already have a custom, manual `CMakeLists.txt` in your root, safely steps out of the way, and passes command execution downstream to trust your existing script.
+  - `--template`: Allows the usage of specific C repository configurations for ease of starting. Currently supports `bin` and `lib` kinds.
+  - `--stealth`: **Stealth Mode.** Removes configuration files from tracking so you can secretly manage massive legacy codebases with C-Salt without disrupting your team. _Note: it is always wise to copy an existing C project into a new directory before using C-Salt._
+- `csalt compile`: Executes C-Salt as a build system, calling the compiler and linker inside the cache (`.csalt/`), and enforcing a strict, safe compilation order. _Note: has limitations on the `dyn` kind._
+- `csalt build`: Automatically acts as a communicator to a build system, such as CMake 3.15. It has two modes:
+  - **Fresh Mode**: Translates your linear `Salt.toml` structure seamlessly into native, readable `CMakeLists.txt` scripts for CMake 3.15, compiling the workspace cleanly. To force, use `--mode fresh`.
+  - **Managed Mode**: Detects if you already have a custom, manual `CMakeLists.txt` in your root, safely steps out of the way, and passes command execution downstream to trust your existing script. To force, use `--mode managed`.
+- `csalt emit`: Mostly meant to be the intermediate step before compilation, emits `.csalt/` and, if using `--build-mode`, also emits `CMakeLists.txt` for CMake 3.15.
 - **Raw Passthrough Escape Hatch**: Pass trailing variable arguments directly to your underlying backend (`csalt (compile/build) -- [args]`) to run raw commands. In other words, it's a macro for:
   - ```bash
     csalt emit
@@ -107,29 +112,42 @@ csalt --help
     <command> [args]
     cd ..
     ```
+  - We also have `--path` and `--verbose`/`-V` flags for additional control.
 
 ## FAQ
 
 1. **What are the kinds of `[[unit]]` I can use?**
-  - There are 5 basic kinds of `[[unit]]` you can use:
-  - `bin` (binary, e.g. `main` or `main.exe`)
-  - `lib` (static library, e.g. `libmath.a` or `math.lib`)
-  - `dyn` (dynamic library, e.g. `libmath.dll` or `libmath.so`)
-  - `extlib` (pre-compiled static library path, e.g. `libmath.a` or `math.lib`)
-  - `extdyn` (pre-compiled dynamic library path, e.g. `libmath.dll` or `libmath.so`)
-  - `pkg` (package, usually managed by `pkg-config`)
-  - **NOTE**: `extdyn` and `dyn` have caused the original creator many issues, especially late at night for cross-platform uses, so they may not be complete
+
+- There are 6 basic kinds of `[[unit]]` you can use:
+- `bin` (binary, e.g. `main` or `main.exe`)
+- `lib` (static library, e.g. `libmath.a` or `math.lib`)
+- `dyn` (dynamic library, e.g. `libmath.dll` or `libmath.so`)
+- `extlib` (pre-compiled static library path, e.g. `libmath.a` or `math.lib`)
+- `extdyn` (pre-compiled dynamic library path, e.g. `libmath.dll` or `libmath.so`)
+- `pkg` (package, usually managed by `pkg-config`)
+- **NOTE**: `extdyn` and `dyn` have caused the original creator many issues, especially late at night for cross-platform uses, so they may not be function correctly.
+
+2. **Who is C-Salt for?**
+
+- Unfortunately, the original creator wasn't able to match the exact audience they wanted, so they transitioned to making C-Salt decently comfortable for beginners to C, and making the transition out simple as well. They plan to add more features to increase utility for C veterans, but are unsure.
+
+3. **What state is C-Salt in right now?**
+
+- It is currently transitioning into a hibernating phase as the original creator enters the next school year. It has done the bare minimum of what it needs to do to be somewhat useful, but is not ready for production use.
 
 ## AI Usage Disclosure
-All architectural decisions were made by the original creator (BurningHot687). A large portion of the current codebase was generated using the Zed Auto-complete functionality and Gemini Flash.
 
-* **Current Status:** Refactoring is underway to clean up AI-generated sections, optimize maintainability, and ensure long-term stability.
-* **Why AI?:** This was the original creator's first Rust project, which started on 2026/6/7, and finished the summer MVP on 2026/7/10 (albeit not testing). The creator had only written simple "Hello World" programs in C and Rust before this project, so they had to actively learn Rust and C at the same time while working on this project. They used AI to speed up development, get working code quickly, and quickly learn how to use Rust, Git, and more. They also were able to learn enough to spot the mistakes in AI-generated code, which was common due to using a weak model.
+All architectural decisions were made by the original creator. A large portion of the current codebase was generated using the Zed Auto-complete functionality and Gemini Flash.
+
+- **Current Status:** Refactoring is underway to clean up AI-generated sections, optimize maintainability, and ensure long-term stability. Current progress on the refactor is going _well_.
+- **Why AI?:** This was the original creator's first Rust project, which started on 2026/6/7, and finished the summer MVP on 2026/7/10 (albeit not testing). The creator had only written simple "Hello World" programs in C and Rust before this project, so they had to actively learn Rust and C at the same time while working on this project. They used AI to speed up development, get working code quickly, and quickly learn how to use Rust, Git, and more. They also were able to learn enough to spot the mistakes in AI-generated code, which was common due to using a weak model.
 
 ## Roadmap
+
 See the [ROADMAP](ROADMAP.md) file for details.
 
 ## Contributing & Licensing
+
 If you would like to contribute, please see the [CONTRIBUTING](CONTRIBUTING.md) file for details.
 
 This project is licensed under the MPL 2.0 License. See the [LICENSE](LICENSE) file for details.

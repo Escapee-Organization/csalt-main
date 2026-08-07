@@ -306,7 +306,7 @@ dependencies = [
 
 [[package]]
 name = "csalt"
-version = "0.11.0"
+version = "0.11.4"
 dependencies = [
  "anstream",
  "anyhow",
@@ -323,6 +323,7 @@ dependencies = [
  "toml",
  "tree-sitter",
  "tree-sitter-c",
+ "which",
 ]
 
 [[package]]
@@ -2187,6 +2188,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0d46a5a140e6f7afeccd8eae97eff335163939eac8b929834875168b29b3d267"
 dependencies = [
  "rustls-pki-types",
+]
+
+[[package]]
+name = "which"
+version = "8.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f3ef584124b911bcc3875c2f1472e80f24361ceb789bd1c62b3e9a3df9ff43c"
+dependencies = [
+ "libc",
 ]
 
 [[package]]
