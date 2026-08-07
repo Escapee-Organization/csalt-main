@@ -129,6 +129,10 @@ csalt --help
 
 - Unfortunately, the original creator wasn't able to match the exact audience they wanted, so they transitioned to making C-Salt decently comfortable for beginners to C, and making the transition out simple as well. They plan to add more features to increase utility for C veterans, but are unsure.
 
+3. **What state is C-Salt in right now?**
+
+- It is currently transitioning into a hibernating phase as the original creator enters the next school year. It has done the bare minimum of what it needs to do to be somewhat useful, but is not ready for production use.
+
 ## AI Usage Disclosure
 
 All architectural decisions were made by the original creator. A large portion of the current codebase was generated using the Zed Auto-complete functionality and Gemini Flash.
