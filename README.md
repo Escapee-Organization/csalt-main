@@ -104,6 +104,7 @@ csalt --help
 - `csalt build`: Automatically acts as a communicator to a build system, such as CMake 3.15. It has two modes:
   - **Fresh Mode**: Translates your linear `Salt.toml` structure seamlessly into native, readable `CMakeLists.txt` scripts for CMake 3.15, compiling the workspace cleanly. To force, use `--mode fresh`.
   - **Managed Mode**: Detects if you already have a custom, manual `CMakeLists.txt` in your root, safely steps out of the way, and passes command execution downstream to trust your existing script. To force, use `--mode managed`.
+- `csalt emit`: Mostly meant to be the intermediate step before compilation, emits `.csalt/` and, if using `--build-mode`, also emits `CMakeLists.txt` for CMake 3.15.
 - **Raw Passthrough Escape Hatch**: Pass trailing variable arguments directly to your underlying backend (`csalt (compile/build) -- [args]`) to run raw commands. In other words, it's a macro for:
   - ```bash
     csalt emit
@@ -111,6 +112,7 @@ csalt --help
     <command> [args]
     cd ..
     ```
+  - We also have `--path` and `--verbose`/`-V` flags for additional control.
 
 ## FAQ
 
