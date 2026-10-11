@@ -27,8 +27,7 @@ pub enum Commands {
     #[command(name = "new")]
     New(NewArgs),
 
-    /// Experimental: Update the csalt binary to the latest version
-    #[cfg(feature = "experimental")]
+    /// Update the csalt binary to the latest version
     #[command(name = "update")]
     Update,
 

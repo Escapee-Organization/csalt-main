@@ -6,9 +6,7 @@
 use anyhow::Context;
 use clap::Parser;
 use csalt::cli::{Args, Commands};
-#[cfg(feature = "experimental")]
-use csalt::update_csalt;
-use csalt::{build_managed_project, build_manual_project, emit_project, fs_utils};
+use csalt::{build_managed_project, build_manual_project, emit_project, fs_utils, update_csalt};
 
 // --------------- FUNCTIONS ---------------
 
@@ -35,10 +33,8 @@ fn run_csalt() -> anyhow::Result<()> {
                 new_args.name
             );
         }
-        #[cfg(feature = "experimental")]
         Commands::Update => {
             update_csalt()?;
-            println!("[Success] Csalt updated successfully");
         }
         Commands::Compile(salt_args) => {
             build_manual_project(

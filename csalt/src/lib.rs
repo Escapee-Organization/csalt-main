@@ -23,19 +23,24 @@ pub mod util;
 
 // -------------------- FUNCTIONS --------------------
 
-// TODO: Implement GitHub release tags and actions
-#[cfg(feature = "experimental")]
-pub fn update_csalt() -> Result<(), Box<dyn std::error::Error>> {
+pub fn update_csalt() -> anyhow::Result<()> {
     println!("[info] Checking for updates...");
-    self_update::backends::github::Update::configure()
+
+    let status = self_update::backends::github::Update::configure()
         .repo_owner("Escapee-Organization")
         .repo_name("csalt-main")
         .bin_name("csalt")
         .current_version(env!("CARGO_PKG_VERSION"))
         .show_download_progress(true)
-        .build()?;
+        .build()?
+        .update()?;
 
-    println!("[info] Update completed successfully.");
+    match status {
+        self_update::Status::UpToDate(_) => println!("[info] Already up to date"),
+        self_update::Status::Updated(v) => {
+            println!("[Success] Successfully updated to version {}", v)
+        }
+    }
     Ok(())
 }
 
